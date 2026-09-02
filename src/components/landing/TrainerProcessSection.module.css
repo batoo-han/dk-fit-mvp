@@ -1,0 +1,155 @@
+.section {
+  background: var(--color-bg);
+  min-block-size: 100svh;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 3.25fr) minmax(0, 3.75fr) minmax(20rem, 3fr);
+  margin: 0 auto;
+  max-inline-size: var(--container);
+  min-block-size: 100svh;
+  padding-inline: var(--gutter);
+}
+
+.approach,
+.process,
+.formSlot {
+  min-inline-size: 0;
+  padding-block: clamp(3rem, 7vw, 6.25rem);
+}
+
+.approach,
+.process {
+  padding-inline-end: clamp(1.5rem, 3.5vw, 4rem);
+}
+
+.process,
+.formSlot {
+  border-inline-start: 1px solid var(--color-border);
+  padding-inline-start: clamp(1.5rem, 3.5vw, 4rem);
+}
+
+.eyebrow {
+  align-items: center;
+  color: var(--color-gold);
+  display: flex;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  gap: 0.875rem;
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.eyebrow::after {
+  background: var(--color-gold);
+  content: "";
+  display: block;
+  block-size: 1px;
+  inline-size: clamp(2.5rem, 5vw, 5rem);
+  opacity: 0.75;
+}
+
+.approachImage {
+  aspect-ratio: 0.78;
+  margin-block: clamp(2rem, 4vw, 3.5rem);
+  max-block-size: 27rem;
+  overflow: hidden;
+}
+
+.image {
+  block-size: 100%;
+  inline-size: 100%;
+  object-fit: cover;
+  object-position: 52% 17%;
+}
+
+.approach h2,
+.formSlot h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2.65rem, 4vw, 4.5rem);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 0.95;
+}
+
+.approach h2 {
+  max-inline-size: 10ch;
+}
+
+.process .eyebrow {
+  margin-block-end: clamp(2.5rem, 6vw, 5rem);
+}
+
+.formSlot {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.5rem, 4vw, 3rem);
+}
+
+.formSlot::after {
+  border-block: 1px solid var(--color-border);
+  content: "";
+  display: block;
+  flex: 1;
+  min-block-size: 14rem;
+}
+
+@media (max-width: 1023px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 1fr);
+  }
+
+  .approach {
+    border-inline-end: 1px solid var(--color-border);
+  }
+
+  .process {
+    border-inline-start: 0;
+    padding-inline-start: clamp(1.5rem, 4vw, 3rem);
+  }
+
+  .formSlot {
+    border-block-start: 1px solid var(--color-border);
+    grid-column: 1 / -1;
+    min-block-size: 18rem;
+    padding-inline-start: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .shell {
+    display: block;
+    min-block-size: auto;
+  }
+
+  .approach,
+  .process,
+  .formSlot {
+    border-inline: 0;
+    padding-inline: 0;
+  }
+
+  .process,
+  .formSlot {
+    border-block-start: 1px solid var(--color-border);
+  }
+
+  .approachImage {
+    aspect-ratio: 1.2;
+    max-block-size: none;
+  }
+
+  .approach h2 {
+    max-inline-size: 12ch;
+  }
+
+  .process .eyebrow {
+    margin-block-end: 2.5rem;
+  }
+
+  .formSlot {
+    min-block-size: 18rem;
+  }
+}

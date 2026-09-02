@@ -1,0 +1,19 @@
+:root {
+  --color-bg: #0b0b0c;
+  --color-surface: #151416;
+  --color-text: #f5f0e8;
+  --color-text-muted: #c9c0b5;
+  --color-burgundy: #6d1e32;
+  --color-burgundy-hover: #81243b;
+  --color-gold: #b99b61;
+  --color-gold-focus: #d1b77c;
+  --color-border: rgb(245 240 232 / 22%);
+  --color-error: #ff9a9a;
+  --color-success: #a9d7b5;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Manrope", Arial, sans-serif;
+  --container: 80rem;
+  --gutter: clamp(1.25rem, 5vw, 4rem);
+  --radius-control: 0.125rem;
+  --control-height: 3.25rem;
+}

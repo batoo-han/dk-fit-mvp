@@ -1,1 +1,15 @@
+html,
+body {
+  min-block-size: 100%;
+}
 
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+main {
+  overflow: clip;
+}

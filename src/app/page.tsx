@@ -1,12 +1,12 @@
+import { HeroSection } from "../components/landing/HeroSection";
+import { TrainerProcessSection } from "../components/landing/TrainerProcessSection";
+import { landingContent } from "../content/landing.ru";
+
 export default function Home() {
   return (
     <main>
-      <section aria-labelledby="hero-heading">
-        <h1 id="hero-heading">D&amp;K Fit</h1>
-      </section>
-      <section aria-labelledby="process-heading">
-        <h2 id="process-heading">Подход к тренировкам</h2>
-      </section>
+      <HeroSection content={landingContent} />
+      <TrainerProcessSection content={landingContent} />
     </main>
   );
 }
