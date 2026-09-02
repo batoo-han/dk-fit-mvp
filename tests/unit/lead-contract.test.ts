@@ -69,8 +69,23 @@ describe("leadSubmitSchema", () => {
     expect(isValid({ ...validLead, phone: "123\n4567" })).toBe(false);
   });
 
+  it.each([
+    ["name", "\nАнна Иванова"],
+    ["name", "Анна Иванова\r"],
+    ["phone", "\n1234567"],
+    ["phone", "1234567\r"],
+  ])("rejects raw leading or trailing control characters in %s", (key, value) => {
+    expect(isValid({ ...validLead, [key]: value })).toBe(false);
+  });
+
   it("allows ordinary goal line breaks but rejects other goal control characters", () => {
     expect(isValid({ ...validLead, goal: "Сила\nВыносливость" })).toBe(true);
     expect(isValid({ ...validLead, goal: "Сила\u0001" })).toBe(false);
+  });
+
+  it("accepts ordinary goal line breaks before normalizing surrounding whitespace", () => {
+    const result = leadSubmitSchema.parse({ ...validLead, goal: "\nСила\r\nВыносливость\n" });
+
+    expect(result.goal).toBe("Сила\r\nВыносливость");
   });
 });

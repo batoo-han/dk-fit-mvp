@@ -7,11 +7,41 @@ function addIssue(context: z.RefinementCtx, path: string[], message: string) {
   context.addIssue({ code: "custom", path, message });
 }
 
+const rawName = z
+  .string()
+  .superRefine((value, context) => {
+    if (controlCharacterPattern.test(value)) {
+      addIssue(context, [], "Name cannot include control characters");
+    }
+  })
+  .transform((value) => value.trim())
+  .pipe(z.string().min(2).max(80));
+
+const rawPhone = z
+  .string()
+  .superRefine((value, context) => {
+    if (controlCharacterPattern.test(value)) {
+      addIssue(context, [], "Phone cannot include control characters");
+    }
+  })
+  .transform((value) => value.trim())
+  .pipe(z.string().min(7).max(32));
+
+const rawGoal = z
+  .string()
+  .superRefine((value, context) => {
+    if (goalControlCharacterPattern.test(value) || /\r(?!\n)/u.test(value)) {
+      addIssue(context, [], "Goal can only include ordinary line breaks");
+    }
+  })
+  .transform((value) => value.trim())
+  .pipe(z.string().max(300));
+
 export const leadSubmitSchema = z
   .object({
-    name: z.string().trim().min(2).max(80),
-    phone: z.string().trim().min(7).max(32),
-    goal: z.string().trim().max(300).optional(),
+    name: rawName,
+    phone: rawPhone,
+    goal: rawGoal.optional(),
     consent: z.literal(true),
     website: z.literal("").optional(),
     startedAt: z.number().int().positive(),
@@ -21,23 +51,9 @@ export const leadSubmitSchema = z
     if (!/\p{L}/u.test(lead.name)) {
       addIssue(context, ["name"], "Name must include a letter");
     }
-    if (controlCharacterPattern.test(lead.name)) {
-      addIssue(context, ["name"], "Name cannot include control characters");
-    }
-
     const normalizedPhone = lead.phone.replace(/\D/g, "");
     if (!/^[0-9+().\- /]+$/.test(lead.phone) || normalizedPhone.length < 7 || normalizedPhone.length > 15) {
       addIssue(context, ["phone"], "Phone must contain 7 to 15 digits and formatting only");
-    }
-    if (controlCharacterPattern.test(lead.phone)) {
-      addIssue(context, ["phone"], "Phone cannot include control characters");
-    }
-
-    if (
-      lead.goal &&
-      (goalControlCharacterPattern.test(lead.goal) || /\r(?!\n)/u.test(lead.goal))
-    ) {
-      addIssue(context, ["goal"], "Goal can only include ordinary line breaks");
     }
   });
 

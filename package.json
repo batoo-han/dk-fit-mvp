@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "check:env": "node scripts/check-env.mjs",
+    "check:env": "node --conditions=react-server scripts/check-env.mjs",
     "verify:assets": "node scripts/verify-assets.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run verify:assets && npm run test:e2e"
   },
@@ -24,6 +24,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "redis": "6.2.1",
+    "server-only": "^0.0.1",
     "sharp": "0.35.4",
     "zod": "4.5.4"
   },

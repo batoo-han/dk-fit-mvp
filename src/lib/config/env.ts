@@ -1,38 +1,54 @@
 import { z } from "zod";
 
+import "server-only";
+
 const MIN_SECRET_LENGTH = 32;
 
 const requiredText = z.string().trim().min(1);
+const serverSecret = z
+  .string()
+  .min(MIN_SECRET_LENGTH)
+  .refine((value) => !/\s/u.test(value), "Secret cannot contain whitespace");
 const positiveIntegerText = z
   .string()
   .regex(/^\d+$/)
   .transform(Number)
   .pipe(z.number().int().positive());
 
-const rawEnvironmentSchema = z.object({
-  NODE_ENV: z.enum(["development", "test", "production"]).optional(),
-  PUBLIC_SITE_URL: requiredText,
-  SITE_AUTHOR_FULL_NAME: requiredText,
-  SMTP_HOST: requiredText,
-  SMTP_PORT: positiveIntegerText.pipe(z.number().max(65_535)),
-  SMTP_SECURE: z.enum(["true", "false"]),
-  SMTP_USER: requiredText,
-  SMTP_PASSWORD: requiredText,
-  SMTP_FROM: requiredText,
-  SMTP_CONNECTION_TIMEOUT_MS: positiveIntegerText,
-  SMTP_SOCKET_TIMEOUT_MS: positiveIntegerText,
-  TELEGRAM_BOT_TOKEN: requiredText,
-  TELEGRAM_BOT_USERNAME: z
-    .string()
-    .trim()
-    .min(1)
-    .regex(/^[^@\s]+$/),
-  TELEGRAM_WEBHOOK_SECRET: z.string().min(MIN_SECRET_LENGTH),
-  REDIS_URL: requiredText,
-  PII_HASH_SECRET: z.string().min(MIN_SECRET_LENGTH),
-  LEGAL_OPERATOR_NAME: requiredText,
-  LEGAL_OPERATOR_CONTACT: requiredText,
-});
+const rawEnvironmentSchema = z
+  .object({
+    NODE_ENV: z.enum(["development", "test", "production"]).optional(),
+    PUBLIC_SITE_URL: requiredText,
+    SITE_AUTHOR_FULL_NAME: requiredText,
+    SMTP_HOST: requiredText,
+    SMTP_PORT: positiveIntegerText.pipe(z.number().max(65_535)),
+    SMTP_SECURE: z.enum(["true", "false"]),
+    SMTP_USER: requiredText,
+    SMTP_PASSWORD: requiredText,
+    SMTP_FROM: requiredText,
+    SMTP_CONNECTION_TIMEOUT_MS: positiveIntegerText,
+    SMTP_SOCKET_TIMEOUT_MS: positiveIntegerText,
+    TELEGRAM_BOT_TOKEN: requiredText,
+    TELEGRAM_BOT_USERNAME: z
+      .string()
+      .trim()
+      .min(1)
+      .regex(/^[^@\s]+$/),
+    TELEGRAM_WEBHOOK_SECRET: serverSecret,
+    REDIS_URL: requiredText,
+    PII_HASH_SECRET: serverSecret,
+    LEGAL_OPERATOR_NAME: requiredText,
+    LEGAL_OPERATOR_CONTACT: requiredText,
+  })
+  .superRefine((environment, context) => {
+    if (environment.NODE_ENV === "production" && environment.SMTP_SECURE !== "true") {
+      context.addIssue({
+        code: "custom",
+        path: ["SMTP_SECURE"],
+        message: "Production SMTP must use TLS",
+      });
+    }
+  });
 
 type RawEnvironment = z.input<typeof rawEnvironmentSchema>;
 type ParsedEnvironment = z.output<typeof rawEnvironmentSchema>;

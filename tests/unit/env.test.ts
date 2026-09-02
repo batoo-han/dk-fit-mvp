@@ -59,8 +59,14 @@ describe("getServerEnv", () => {
   it.each([
     ["PII_HASH_SECRET", "p".repeat(31)],
     ["TELEGRAM_WEBHOOK_SECRET", "w".repeat(31)],
+    ["PII_HASH_SECRET", " ".repeat(32)],
+    ["TELEGRAM_WEBHOOK_SECRET", "w".repeat(31) + " "],
   ])("rejects a too-short %s", (key, value) => {
     expect(() => getServerEnv(environment({ [key]: value }))).toThrow(key);
+  });
+
+  it("requires TLS for SMTP in production", () => {
+    expect(() => getServerEnv(environment({ SMTP_SECURE: "false" }))).toThrow("SMTP_SECURE");
   });
 
   it.each(["LEGAL_OPERATOR_NAME", "LEGAL_OPERATOR_CONTACT"])("requires %s", (key) => {
