@@ -11,6 +11,7 @@ type Entry = { value: string; expiresAt?: number };
 class FakeRedis implements RedisStore {
   readonly entries = new Map<string, Entry>();
   unavailable = false;
+  private timestamp = 1_700_000_000_000;
 
   async get(key: string): Promise<string | null> {
     this.throwIfUnavailable();
@@ -30,7 +31,7 @@ class FakeRedis implements RedisStore {
 
     this.entries.set(key, {
       value,
-      expiresAt: options?.EX ? Date.now() + options.EX * 1_000 : options?.KEEPTTL ? current?.expiresAt : undefined,
+      expiresAt: options?.EX ? this.timestamp + options.EX * 1_000 : options?.KEEPTTL ? current?.expiresAt : undefined,
     });
     return "OK";
   }
@@ -42,27 +43,49 @@ class FakeRedis implements RedisStore {
     return value;
   }
 
-  async eval(_script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown> {
+  async eval(script: string, options: { keys: string[]; arguments: string[] }): Promise<unknown> {
     this.throwIfUnavailable();
+    if (script.includes("claimToken")) {
+      const key = options.keys[0];
+      const entry = this.read(key);
+      if (!entry) {
+        return 0;
+      }
+      const record = JSON.parse(entry.value) as { status: string; claimToken: string };
+      if (record.status !== "processing" || record.claimToken !== options.arguments[0]) {
+        return 0;
+      }
+      if (script.includes("DEL")) {
+        this.entries.delete(key);
+      } else {
+        record.status = "succeeded";
+        this.entries.set(key, { value: JSON.stringify(record), expiresAt: entry.expiresAt });
+      }
+      return 1;
+    }
     const duplicateIndex = options.keys.findIndex((key) => this.read(key));
     if (duplicateIndex >= 0) {
       return duplicateIndex + 1;
     }
     options.keys.forEach((key, index) => {
       const ttlSeconds = Number(options.arguments[index]);
-      this.entries.set(key, { value: "1", expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1_000 : undefined });
+      this.entries.set(key, { value: "1", expiresAt: ttlSeconds ? this.timestamp + ttlSeconds * 1_000 : undefined });
     });
     return 0;
   }
 
   ttl(key: string): number | undefined {
     const expiresAt = this.read(key)?.expiresAt;
-    return expiresAt ? Math.round((expiresAt - Date.now()) / 1_000) : undefined;
+    return expiresAt ? Math.ceil((expiresAt - this.timestamp) / 1_000) : undefined;
+  }
+
+  advance(seconds: number) {
+    this.timestamp += seconds * 1_000;
   }
 
   private read(key: string): Entry | undefined {
     const entry = this.entries.get(key);
-    if (entry?.expiresAt && entry.expiresAt <= Date.now()) {
+    if (entry?.expiresAt && entry.expiresAt <= this.timestamp) {
       this.entries.delete(key);
       return undefined;
     }
@@ -83,7 +106,10 @@ describe("lead idempotency", () => {
     const redis = new FakeRedis();
     const idempotency = createLeadIdempotency({ redis, piiHashSecret: secret });
 
-    await expect(idempotency.claimLead("client-key-123", "phone=79000000000")).resolves.toEqual({ kind: "claimed" });
+    await expect(idempotency.claimLead("client-key-123", "phone=79000000000")).resolves.toMatchObject({
+      kind: "claimed",
+      token: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+    });
 
     expect(redis.entries).toHaveLength(1);
     const [redisKey, record] = [...redis.entries.entries()][0];
@@ -97,10 +123,47 @@ describe("lead idempotency", () => {
     const redis = new FakeRedis();
     const idempotency = createLeadIdempotency({ redis, piiHashSecret: secret });
 
-    await idempotency.claimLead("client-key-123", "phone=79000000000");
-    await idempotency.completeLead("client-key-123");
+    const claim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+    await idempotency.completeLead("client-key-123", claim.token);
 
     await expect(idempotency.claimLead("client-key-123", "phone=79000000000")).resolves.toEqual({ kind: "replay" });
+  });
+
+  it("completes a matching claim atomically and preserves its remaining TTL", async () => {
+    const redis = new FakeRedis();
+    const idempotency = createLeadIdempotency({ redis, piiHashSecret: secret });
+    const claim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+    const [redisKey] = redis.entries.keys();
+    redis.advance(90);
+
+    await expect(idempotency.completeLead("client-key-123", claim.token)).resolves.toBe(true);
+
+    expect(redis.ttl(redisKey)).toBe(LEAD_IDEMPOTENCY_TTL_SECONDS - 90);
+  });
+
+  it("cannot complete a new claim with a token from an expired predecessor", async () => {
+    const redis = new FakeRedis();
+    const idempotency = createLeadIdempotency({ redis, piiHashSecret: secret });
+    const firstClaim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+    redis.advance(LEAD_IDEMPOTENCY_TTL_SECONDS + 1);
+    const replacementClaim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+
+    await expect(idempotency.completeLead("client-key-123", firstClaim.token)).resolves.toBe(false);
+    await expect(idempotency.claimLead("client-key-123", "phone=79000000000")).resolves.toEqual({ kind: "processing" });
+    expect(replacementClaim.token).not.toBe(firstClaim.token);
+  });
+
+  it("releases only the matching retryable claim and never deletes a replacement", async () => {
+    const redis = new FakeRedis();
+    const idempotency = createLeadIdempotency({ redis, piiHashSecret: secret });
+    const firstClaim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+
+    await expect(idempotency.releaseLead("client-key-123", firstClaim.token)).resolves.toBe(true);
+    const replacementClaim = await requireClaim(idempotency.claimLead("client-key-123", "phone=79000000000"));
+
+    await expect(idempotency.releaseLead("client-key-123", firstClaim.token)).resolves.toBe(false);
+    await expect(idempotency.claimLead("client-key-123", "phone=79000000000")).resolves.toEqual({ kind: "processing" });
+    expect(replacementClaim.token).not.toBe(firstClaim.token);
   });
 
   it("rejects a different payload for an already used key", async () => {
@@ -144,3 +207,15 @@ describe("lead idempotency", () => {
     expect(redis.entries.has("telegram:started:hashed-chat")).toBe(false);
   });
 });
+
+async function requireClaim(
+  result: ReturnType<ReturnType<typeof createLeadIdempotency>["claimLead"]>,
+): Promise<{ kind: "claimed"; token: string }> {
+  const claim = await result;
+  expect(claim.kind).toBe("claimed");
+  if (claim.kind !== "claimed") {
+    throw new Error("Expected a new idempotency claim");
+  }
+  expect(claim.token).toMatch(/^[0-9a-f-]{36}$/u);
+  return claim as { kind: "claimed"; token: string };
+}

@@ -30,7 +30,10 @@ class FakeRedis implements RedisStore {
     const ttlSeconds = Number(options.arguments[0]);
     this.evalCalls.push({ key, ttlSeconds });
     const current = Number(this.entries.get(key)?.value ?? "0") + 1;
-    this.entries.set(key, { value: String(current), expiresAt: Date.now() + ttlSeconds * 1_000 });
+    this.entries.set(key, {
+      value: String(current),
+      expiresAt: this.entries.get(key)?.expiresAt ?? Date.now() + ttlSeconds * 1_000,
+    });
     return current;
   }
 
@@ -41,7 +44,7 @@ class FakeRedis implements RedisStore {
   }
 }
 
-const claimed: LeadClaimResult = { kind: "claimed" };
+const claimed: LeadClaimResult = { kind: "claimed", token: "00000000-0000-4000-8000-000000000000" };
 
 describe("lead rate limiting", () => {
   const secret = "s".repeat(32);
