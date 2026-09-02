@@ -12,8 +12,6 @@ const expectedAssets = [
 ];
 
 const reviewedFiles = new Set(expectedAssets.map((asset) => asset.path));
-const reviewedDirectories = ["public/images", "public/brand"];
-
 async function verifyExpectedAsset(asset) {
   const absolutePath = path.join(root, asset.path);
   await access(absolutePath);
@@ -32,21 +30,24 @@ async function verifyExpectedAsset(asset) {
 }
 
 async function verifyNoUnreviewedAssets() {
-  for (const directory of reviewedDirectories) {
-    const absoluteDirectory = path.join(root, directory);
-    const entries = await readdir(absoluteDirectory, { withFileTypes: true });
+  async function visit(directory) {
+    const entries = await readdir(directory, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (!entry.isFile()) {
-        throw new Error(`${directory}/${entry.name} is not a reviewed file`);
-      }
+      const absolutePath = path.join(directory, entry.name);
+      const assetPath = path.relative(root, absolutePath).split(path.sep).join("/");
 
-      const assetPath = path.posix.join(directory, entry.name);
-      if (!reviewedFiles.has(assetPath)) {
+      if (entry.isDirectory()) {
+        await visit(absolutePath);
+      } else if (entry.isFile() && !reviewedFiles.has(assetPath)) {
         throw new Error(`${assetPath} is not in the reviewed asset inventory`);
+      } else if (!entry.isFile()) {
+        throw new Error(`${assetPath} is not a reviewed file`);
       }
     }
   }
+
+  await visit(path.join(root, "public"));
 }
 
 for (const asset of expectedAssets) {

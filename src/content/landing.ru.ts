@@ -2,11 +2,6 @@ import type { LandingContent } from "./landing-content.types";
 
 export const landingContent = {
   brandName: "D&K Fit",
-  navigation: [
-    { href: "#approach", label: "О тренере" },
-    { href: "#process", label: "Как это работает" },
-    { href: "#approach", label: "Подход" },
-  ],
   hero: {
     title: "Сила становится стилем",
     description: "Персональные тренировки с вниманием к каждой детали.",

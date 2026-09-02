@@ -1,11 +1,5 @@
-export type LandingNavigationItem = {
-  href: string;
-  label: string;
-};
-
 export type LandingContent = {
   brandName: string;
-  navigation: readonly LandingNavigationItem[];
   hero: {
     title: string;
     description: string;

@@ -15,7 +15,17 @@
 | `public/brand/favicon-32.png` | 32x32 | Favicon source |
 | `public/brand/apple-touch-icon.png` | 180x180 | Apple touch icon source |
 
-`npm run verify:assets` failed before the assets were created with the expected missing `public/images/hero-trainer.avif` error, then passed after export with all four reviewed files.
+### Auditable red-green evidence
+
+Before the assets existed, this Node 24 command exited `1`:
+
+```powershell
+npm run verify:assets
+```
+
+The verifier stopped at `ENOENT` for `J:\kwork\12082026\dk-fit\public\images\hero-trainer.avif`. After export, the same command exited `0` and printed `Verified 4 reviewed visual assets.`
+
+The review fix was also test-first. `tests/unit/verify-assets.test.ts` creates `public/unreviewed-asset-probe.tmp` and runs the real verifier process. Before recursive public-root enumeration, the test exited `1` with `expected +0 not to be +0`: the verifier had incorrectly returned success for that unreviewed root file. The test cleanup removes only its own probe. After the fix, it requires a non-zero verifier exit and the literal diagnostic `public/unreviewed-asset-probe.tmp is not in the reviewed asset inventory`.
 
 ## Provenance and rights limitation
 
