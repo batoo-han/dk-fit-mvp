@@ -56,7 +56,13 @@ export function leadFormReducer(state: LeadFormState, action: LeadFormAction): L
     case "SUBMIT":
       return { ...state, status: "submitting", message: undefined, fieldErrors: {} };
     case "EMAIL_ACCEPTED":
-      return { ...state, status: "email_accepted", telegramDeepLink: action.telegramDeepLink, fieldErrors: {} };
+      return {
+        ...state,
+        status: "email_accepted",
+        values: initialLeadFormState.values,
+        telegramDeepLink: action.telegramDeepLink,
+        fieldErrors: {},
+      };
     case "REDIRECT":
       return { ...state, status: "redirecting" };
     case "RATE_LIMITED":

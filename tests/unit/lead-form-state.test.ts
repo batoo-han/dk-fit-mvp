@@ -23,11 +23,16 @@ describe("leadFormReducer", () => {
   });
 
   it("only enters the success path for a 201 email acceptance", () => {
-    const submitted = { ...initialLeadFormState, status: "submitting" as const };
+    const submitted = {
+      ...initialLeadFormState,
+      status: "submitting" as const,
+      values: { name: "Анна", phone: "+7 900 000-00-00", goal: "Сила", consent: true },
+    };
     const accepted = leadFormReducer(submitted, { type: "EMAIL_ACCEPTED", telegramDeepLink: "https://t.me/test_bot?start=registered" });
     const redirecting = leadFormReducer(accepted, { type: "REDIRECT" });
 
     expect(accepted.status).toBe("email_accepted");
+    expect(accepted.values).toEqual({ name: "", phone: "", goal: "", consent: false });
     expect(accepted.telegramDeepLink).toBe("https://t.me/test_bot?start=registered");
     expect(redirecting.status).toBe("redirecting");
   });

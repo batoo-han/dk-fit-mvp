@@ -78,6 +78,7 @@ describe("LeadForm", () => {
     vi.mocked(window.open).mockReturnValue(popup);
     render(<LeadForm request={request} />);
     fillValidLead();
+    fireEvent.change(screen.getByLabelText("Цель тренировок"), { target: { value: "Стать сильнее" } });
 
     fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
 
@@ -86,6 +87,11 @@ describe("LeadForm", () => {
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://t.me/test_bot?start=registered"));
     expect(popup.opener).toBeNull();
     expect(screen.getByRole("link", { name: "Открыть Telegram" }).getAttribute("target")).toBe("_blank");
+    expect((screen.getByLabelText("Имя") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Телефон") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Цель тренировок") as HTMLTextAreaElement).value).toBe("");
+    expect((screen.getByRole("checkbox", { name: /Согласие на обработку данных/u }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("button", { name: "Отправить заявку" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("rechecks the same lead while the server is still delivering its email", async () => {
