@@ -4,6 +4,7 @@ export type NextCommand = {
   shell: false;
 };
 
+export function assertNode24(nodeVersion?: string): void;
 export function createNextCommand(subcommand: string, args?: string[]): NextCommand;
 export function findAvailableLoopbackPort(): Promise<number>;
 export function waitForHttpReady(options: {

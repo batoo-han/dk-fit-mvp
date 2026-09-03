@@ -35,6 +35,8 @@ node .\scripts\run-e2e.mjs tests/e2e/landing.spec.ts --reporter=line
 
 Every command performs a fresh production build and starts an externally owned Next server. The first and second no-update visual runs both exited `0` with `Playwright: 6 passed`; their temporary loopback ports (`58107`, `53997`) were confirmed closed by the harness after cleanup. The no-update landing run exited `0` with `Playwright: 2 passed` and closed its temporary port (`52158`). A combined landing-plus-visual run was also executed twice: both exited `0` with `Playwright: 8 passed` and confirmed ports `55165` and `58484` closed. No snapshot update flag was used for these gates.
 
+The production E2E harness now rejects every non-24 Node major before selecting a port, building Next, starting the owned server or launching Playwright. Under the workspace's default Node `v22.15.0`, `npm run test:e2e` exits `1` with `Node 24 is required for production E2E; found v22.15.0`. A fresh no-update visual gate under `J:\AI\node-v24.16.0-win-x64\node.exe` exited `0` with `Playwright: 6 passed` and confirmed loopback port `65452` closed.
+
 ## Scope ruling
 
 - [x] The Hero bleed and dev-overlay findings are corrected and covered by a rendered-output regression.

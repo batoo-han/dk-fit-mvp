@@ -2,6 +2,7 @@ import net from "node:net";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertNode24,
   createNextCommand,
   findAvailableLoopbackPort,
   waitForHttpReady,
@@ -9,6 +10,14 @@ import {
 } from "../../scripts/e2e-harness.mjs";
 
 describe("production E2E harness", () => {
+  it("rejects a non-24 Node runtime before E2E prerequisites can start", () => {
+    expect(() => assertNode24("22.15.0")).toThrow("Node 24 is required for production E2E; found v22.15.0");
+  });
+
+  it("accepts a Node 24 runtime", () => {
+    expect(() => assertNode24("24.16.0")).not.toThrow();
+  });
+
   it("uses the current Node executable for direct Next commands", () => {
     expect(createNextCommand("build")).toEqual({
       command: process.execPath,

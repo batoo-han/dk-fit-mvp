@@ -5,6 +5,13 @@ import { setTimeout as delay } from "node:timers/promises";
 const LOOPBACK_HOST = "127.0.0.1";
 const NEXT_BIN = "node_modules/next/dist/bin/next";
 
+export function assertNode24(nodeVersion = process.versions.node) {
+  const major = Number.parseInt(nodeVersion.replace(/^v/u, "").split(".", 1)[0], 10);
+  if (major !== 24) {
+    throw new Error(`Node 24 is required for production E2E; found v${nodeVersion}`);
+  }
+}
+
 export function createNextCommand(subcommand, args = []) {
   return {
     command: process.execPath,
@@ -67,6 +74,7 @@ export async function waitForPortToClose({ port, timeoutMs = 10_000, intervalMs 
 }
 
 export async function runProductionE2e(playwrightArgs) {
+  assertNode24();
   const port = await findAvailableLoopbackPort();
   const baseUrl = `http://${LOOPBACK_HOST}:${port}`;
 
