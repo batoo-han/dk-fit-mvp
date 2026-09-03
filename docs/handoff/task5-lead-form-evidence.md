@@ -47,7 +47,8 @@ retry, transports the actual honeypot value for server-side rejection, resets th
 idempotency key on an edit, announces field-less `422` responses, and makes both
 the consent checkbox and privacy link 44px touch targets with visible focus.
 
-Fresh scoped verification:
+Fresh scoped verification, confirmed by the reviewer under the project's Node 24
+executable, `J:\AI\node-v24.16.0-win-x64\node.exe` (`v24.16.0`):
 
 ```text
 npm test -- tests/component/lead-form.test.tsx tests/unit/lead-form-state.test.ts
@@ -60,7 +61,15 @@ git diff --check
 exit 0
 ```
 
-The local runtime available to this repair agent is Node `v22.15.0`; the project
-requires Node 24 and no local Node 24 runtime was found. The commands above are
-therefore evidence of code behaviour, not fulfilment of the required Node-24
-verification gate. No visual/preview files were changed.
+The scoped Task 5 suite passed with 20 tests; typecheck, lint, and
+`git diff --check` also exited `0`. Task 7's separate lead-route verification
+recorded 16 passing route/email tests before its later review-fix additions; that
+route evidence remains outside Task 5 and is not evidence that Task 5 changed
+server-route behavior.
+
+Commit `4a7ec93` contains only the Task 5 form, reducer, adapter, focused tests,
+and this evidence document; it contains no visual or preview files. The hero,
+Playwright configuration, visual test, design-QA record, and screenshot baselines
+belong to the immediately preceding, separate commit `2429ba9`
+(`fix: align Editorial Strength hero composition`). Therefore this review-fix
+does not claim a visual-QA pass or attribute predecessor visual work to Task 5.
