@@ -24,3 +24,7 @@
 В MVP входят лендинг из двух смысловых экранов, адаптивный дизайн, форма заявки, SMTP-уведомление на `superhumansmm@yandex.ru`, переход в Telegram и бот, отвечающий благодарностью только на `/start`.
 
 В MVP не входят CRM, личный кабинет, база лидов, платежи, аналитика поведения, рассылки, календарь, автоматический ответ на произвольные сообщения и автоматический fallback между SMTP-провайдерами.
+
+## Docker Compose
+
+Production Compose reads `.env` by default; create it locally from `.env.example` and keep it outside Git. For an explicit deployment-specific file, set `DK_FIT_ENV_FILE` to its path before running Compose. The `app` service always runs with `NODE_ENV=production`, even if the selected env file contains another value.
