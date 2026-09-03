@@ -77,6 +77,35 @@ function handlerWith(overrides: Partial<LeadRouteDependencies> = {}) {
   return { handler: createLeadRouteHandler(dependencies), dependencies };
 }
 
+function productionEnvironment(): ReturnType<typeof environmentConfig.getServerEnv> {
+  return {
+    runtimeMode: "production",
+    publicSiteUrl: new URL("https://dnk.batoohan.ru"),
+    siteAuthorFullName: "Тестовый Автор",
+    leadRecipientEmail: "lead-recipient@example.test",
+    smtp: {
+      host: "smtp.example.test",
+      port: 465,
+      secure: true,
+      user: "smtp-user",
+      password: "smtp-password",
+      from: "sender@example.test",
+      connectionTimeoutMs: 10_000,
+      socketTimeoutMs: 15_000,
+    },
+    telegram: {
+      apiBaseUrl: new URL("https://telegram-proxy.example.test/tg/"),
+      token: "123:fixture-token",
+      username: "DandK_FitBody_bot",
+      webhookSecret: "w".repeat(32),
+    },
+    redisUrl: "redis://redis:6379",
+    piiHashSecret: "p".repeat(32),
+    legalOperatorName: "Тестовый оператор",
+    legalOperatorContact: "operator@example.test",
+  };
+}
+
 async function expectSafeError(response: Response, status: number, code: string) {
   expect(response.status).toBe(status);
   expect(response.headers.get("cache-control")).toBe("no-store");
@@ -376,7 +405,7 @@ describe("POST /api/leads", () => {
     );
   });
 
-  it("runs malformed-content and origin gates before unavailable production dependencies", async () => {
+  it("runs malformed-content gates before unavailable production dependencies", async () => {
     const getServerEnv = vi.spyOn(environmentConfig, "getServerEnv").mockImplementation(() => {
       throw new Error("misconfigured server environment");
     });
@@ -385,9 +414,40 @@ describe("POST /api/leads", () => {
     try {
       await expectSafeError(await POST(leadRequest({ contentType: "text/plain" })), 400, "INVALID_REQUEST");
       await expectSafeError(await POST(leadRequest({ body: "{" })), 400, "INVALID_REQUEST");
-      await expectSafeError(await POST(leadRequest({ origin: "https://attacker.test" })), 403, "INVALID_ORIGIN");
       expect(getServerEnv).not.toHaveBeenCalled();
       expect(getRedisClient).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("rejects a cross-origin production request before Redis and SMTP dependencies", async () => {
+    vi.spyOn(environmentConfig, "getServerEnv").mockReturnValue(productionEnvironment());
+    const getRedisClient = vi.spyOn(redisClient, "getRedisClient").mockRejectedValue(new Error("Redis unavailable"));
+
+    try {
+      await expectSafeError(await POST(leadRequest({ origin: "https://attacker.test" })), 403, "INVALID_ORIGIN");
+      expect(getRedisClient).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("uses the configured public origin when a reverse proxy leaves an internal request URL", async () => {
+    const getServerEnv = vi.spyOn(environmentConfig, "getServerEnv").mockReturnValue(productionEnvironment());
+    vi.spyOn(redisClient, "getRedisClient").mockResolvedValue({} as never);
+
+    try {
+      const response = await POST(
+        leadRequest({
+          body: {},
+          origin: "https://dnk.batoohan.ru",
+          requestUrl: "http://app:3000/api/leads",
+        }),
+      );
+
+      await expectSafeError(response, 422, "INVALID_REQUEST");
+      expect(getServerEnv).toHaveBeenCalledOnce();
     } finally {
       vi.restoreAllMocks();
     }

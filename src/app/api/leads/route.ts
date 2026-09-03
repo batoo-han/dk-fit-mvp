@@ -10,7 +10,7 @@ import { createLeadRateLimiter, type LeadRateLimiter } from "../../../lib/leads/
 import { submitLead } from "../../../lib/leads/service";
 import { getRedisClient } from "../../../lib/redis/client";
 import { fingerprintPhone } from "../../../lib/security/fingerprint";
-import { hasAllowedLeadOrigin, hasSameOrigin } from "../../../lib/security/origin";
+import { hasAllowedLeadOrigin } from "../../../lib/security/origin";
 import { createRequestId } from "../../../lib/security/request-id";
 
 export const runtime = "nodejs";
@@ -137,6 +137,9 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const env = getServerEnv();
+    if (!hasAllowedLeadOrigin(request.headers.get("origin"), request.url, env)) {
+      return errorResponse(403, "INVALID_ORIGIN", requestId);
+    }
     const redis = await getRedisClient();
     const mailer = createLeadMailer(env);
     return await handleLeadRequest(request, {
@@ -168,19 +171,7 @@ async function prepareProductionRequest(
     return { ok: false, response: errorResponse(400, "INVALID_REQUEST", requestId) };
   }
 
-  if (!hasRequestSameOrigin(request)) {
-    return { ok: false, response: errorResponse(403, "INVALID_ORIGIN", requestId) };
-  }
-
   return { ok: true, preparedRequest: { requestId, startedAt, payload: payload.value } };
-}
-
-function hasRequestSameOrigin(request: Request): boolean {
-  try {
-    return hasSameOrigin(request.headers.get("origin"), new URL(request.url));
-  } catch {
-    return false;
-  }
 }
 
 function isJsonRequest(request: Request): boolean {
