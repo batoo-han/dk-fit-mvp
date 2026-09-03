@@ -28,6 +28,8 @@ export function runSmtpSmoke(options: {
     host: string;
     port: number;
     secure: boolean;
+    requireTLS: true;
+    tls: { rejectUnauthorized: true };
     auth: { user: string; pass: string };
     connectionTimeout: number;
     socketTimeout: number;

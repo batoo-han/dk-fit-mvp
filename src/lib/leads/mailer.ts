@@ -18,6 +18,8 @@ type CreateSmtpTransport = (options: {
   host: string;
   port: number;
   secure: boolean;
+  requireTLS: true;
+  tls: { rejectUnauthorized: true };
   auth: { user: string; pass: string };
   connectionTimeout: number;
   socketTimeout: number;
@@ -42,6 +44,8 @@ export function createLeadMailer(
     host: environment.smtp.host,
     port: environment.smtp.port,
     secure: environment.smtp.secure,
+    requireTLS: true,
+    tls: { rejectUnauthorized: true },
     auth: { user: environment.smtp.user, pass: environment.smtp.password },
     connectionTimeout: environment.smtp.connectionTimeoutMs,
     socketTimeout: environment.smtp.socketTimeoutMs,

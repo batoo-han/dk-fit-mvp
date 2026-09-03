@@ -65,8 +65,8 @@ describe("getServerEnv", () => {
     expect(() => getServerEnv(environment({ [key]: value }))).toThrow(key);
   });
 
-  it("requires TLS for SMTP in production", () => {
-    expect(() => getServerEnv(environment({ SMTP_SECURE: "false" }))).toThrow("SMTP_SECURE");
+  it("permits STARTTLS for SMTP in production", () => {
+    expect(getServerEnv(environment({ SMTP_SECURE: "false" })).smtp).toMatchObject({ secure: false });
   });
 
   it.each(["LEGAL_OPERATOR_NAME", "LEGAL_OPERATOR_CONTACT"])("requires %s", (key) => {

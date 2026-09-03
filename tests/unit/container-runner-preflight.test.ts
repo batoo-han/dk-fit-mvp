@@ -37,6 +37,16 @@ describe("container runner preflight", () => {
     });
   });
 
+  it("accepts a production STARTTLS configuration", async () => {
+    const result = await runCopiedPreflight({ ...completeEnvironment, SMTP_SECURE: "false" });
+
+    expect({ status: result.status, stdout: result.stdout, stderr: result.stderr }).toEqual({
+      status: 0,
+      stdout: "",
+      stderr: "",
+    });
+  });
+
   it("copies and invokes that standalone artifact in the runner stage", async () => {
     const dockerfile = await readFile(resolve(process.cwd(), "Dockerfile"), "utf8");
     const runnerStage = dockerfile.split(" AS runner", 2)[1];

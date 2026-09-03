@@ -96,6 +96,31 @@ describe("production SMTP smoke", () => {
     });
   });
 
+  it("uses authenticated STARTTLS when implicit TLS is disabled", async () => {
+    const verify = vi.fn().mockResolvedValue(undefined);
+    const sendMail = vi.fn().mockResolvedValue({ accepted: ["release-recipient@example.test"] });
+    const createTransport = vi.fn().mockReturnValue({ verify, sendMail });
+
+    await expect(
+      runSmtpSmoke({
+        arguments: ["--to", "release-recipient@example.test", "--confirm-send"],
+        environment: { ...completeEnvironment, SMTP_SECURE: "false" },
+        createTransport,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(createTransport).toHaveBeenCalledWith({
+      host: "smtp.dk-fit.test",
+      port: 465,
+      secure: false,
+      requireTLS: true,
+      tls: { rejectUnauthorized: true },
+      auth: { user: "fixture-user", pass: "fixture-password" },
+      connectionTimeout: 10_000,
+      socketTimeout: 15_000,
+    });
+  });
+
   it("does not report success when SMTP omits the explicit recipient from accepted", async () => {
     const createTransport = vi.fn().mockReturnValue({
       verify: vi.fn().mockResolvedValue(undefined),

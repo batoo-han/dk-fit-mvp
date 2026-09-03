@@ -45,6 +45,16 @@ reverse proxy на том же хосте. Proxy обязан **перезапи
 заменяет `docker compose build`, запуск контейнера, проверку entrypoint/preflight
 или production environment.
 
+## SMTP TLS contract
+
+`SMTP_SECURE=true` uses implicit TLS when connecting to the SMTP server (usually
+port 465). `SMTP_SECURE=false` selects STARTTLS instead: both lead delivery and
+the explicit smoke tool set Nodemailer's `requireTLS=true`, so a server that
+does not upgrade to TLS is rejected rather than used over plaintext. Certificate
+validation remains enabled (`rejectUnauthorized=true`) in both modes. The public
+lead recipient remains `superhumansmm@yandex.ru`; SMTP configuration does not
+change it.
+
 ## Локальные проверки
 
 Используйте Node 24. Vitest настроен с `envDir: false`, поэтому unit/component/

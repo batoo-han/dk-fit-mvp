@@ -60,6 +60,16 @@ than exposing the app publicly; preserve the same overwrite contract.
 
 ## Explicit SMTP smoke
 
+### TLS transport contract
+
+Set `SMTP_SECURE=true` for implicit TLS (normally port 465). Set
+`SMTP_SECURE=false` only for a provider that supports STARTTLS: both the lead
+mailer and this smoke tool require the TLS upgrade and fail closed if the server
+would use plaintext SMTP. Certificate validation is explicitly enabled in both
+modes; do not set `NODE_TLS_REJECT_UNAUTHORIZED=0` or add a certificate-bypass
+option. This setting never changes the public lead recipient
+`superhumansmm@yandex.ru`.
+
 The smoke tool is intentionally separate from `/api/leads`; it never changes
 the public lead recipient or posts a lead. It will not send until both CLI
 arguments are present:

@@ -84,6 +84,8 @@ export async function runSmtpSmoke({
     host: serverEnvironment.smtp.host,
     port: serverEnvironment.smtp.port,
     secure: serverEnvironment.smtp.secure,
+    requireTLS: true,
+    tls: { rejectUnauthorized: true },
     auth: { user: serverEnvironment.smtp.user, pass: serverEnvironment.smtp.password },
     connectionTimeout: serverEnvironment.smtp.connectionTimeoutMs,
     socketTimeout: serverEnvironment.smtp.socketTimeoutMs,

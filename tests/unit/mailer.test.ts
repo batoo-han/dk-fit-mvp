@@ -5,7 +5,7 @@ import { createLeadMailer, EmailUnavailableError } from "../../src/lib/leads/mai
 const smtp = {
   host: "smtp.dk-fit.test",
   port: 465,
-  secure: true,
+  secure: false,
   user: "test-user",
   password: "test-password",
   from: "D&K Fit <no-reply@dk-fit.test>",
@@ -29,7 +29,9 @@ describe("lead mailer", () => {
     expect(createTransport).toHaveBeenCalledWith({
       host: smtp.host,
       port: smtp.port,
-      secure: true,
+      secure: false,
+      requireTLS: true,
+      tls: { rejectUnauthorized: true },
       auth: { user: smtp.user, pass: smtp.password },
       connectionTimeout: smtp.connectionTimeoutMs,
       socketTimeout: smtp.socketTimeoutMs,

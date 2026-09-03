@@ -39,15 +39,6 @@ const rawEnvironmentSchema = z
     PII_HASH_SECRET: serverSecret,
     LEGAL_OPERATOR_NAME: requiredText,
     LEGAL_OPERATOR_CONTACT: requiredText,
-  })
-  .superRefine((environment, context) => {
-    if (environment.NODE_ENV === "production" && environment.SMTP_SECURE !== "true") {
-      context.addIssue({
-        code: "custom",
-        path: ["SMTP_SECURE"],
-        message: "Production SMTP must use TLS",
-      });
-    }
   });
 
 type RawEnvironment = z.input<typeof rawEnvironmentSchema>;

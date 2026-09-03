@@ -44,10 +44,6 @@ export function invalidEnvironmentKeys(environment = process.env) {
   if (!["true", "false"].includes(environment.SMTP_SECURE ?? "")) {
     invalid.add("SMTP_SECURE");
   }
-  if (environment.NODE_ENV === "production" && environment.SMTP_SECURE !== "true") {
-    invalid.add("SMTP_SECURE");
-  }
-
   const telegramUsername = environment.TELEGRAM_BOT_USERNAME?.trim();
   if (!telegramUsername || !/^[^@\s]+$/u.test(telegramUsername)) {
     invalid.add("TELEGRAM_BOT_USERNAME");
