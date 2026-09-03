@@ -14,10 +14,10 @@
 
 .consent input {
   accent-color: var(--color-burgundy);
-  block-size: 1.25rem;
+  block-size: 2.75rem;
   flex: 0 0 auto;
-  inline-size: 1.25rem;
-  margin-block-start: 0.05rem;
+  inline-size: 2.75rem;
+  margin: 0;
 }
 
 .consent input:focus-visible,
@@ -27,9 +27,18 @@
 }
 
 .privacy {
+  align-items: center;
   color: var(--color-text);
+  display: inline-flex;
+  min-block-size: 2.75rem;
+  min-inline-size: 2.75rem;
   text-decoration-color: var(--color-gold);
   text-underline-offset: 0.2em;
+}
+
+.privacy:focus-visible {
+  outline: 3px solid var(--color-gold-focus);
+  outline-offset: 3px;
 }
 
 .fieldError,

@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 
 import { InputField, TextareaField } from "../../components/ui/Field";
-import type { LeadSubmitError, LeadSubmitRequest, LeadSubmitSuccess } from "../../lib/contracts/lead";
+import type { LeadSubmitError, LeadSubmitSuccess } from "../../lib/contracts/lead";
 import { landingContent } from "../../content/landing.ru";
 import styles from "./LeadForm.module.css";
 import { initialLeadFormState, leadFormReducer, type LeadFormValues } from "./state";
-import { submitLead } from "./submit-lead";
+import { submitLead, type LeadSubmitClientRequest } from "./submit-lead";
 
 type LeadFormProps = {
-  request?: (payload: LeadSubmitRequest, idempotencyKey: string) => Promise<Response>;
+  request?: (payload: LeadSubmitClientRequest, idempotencyKey: string) => Promise<Response>;
 };
 
 const content = landingContent.leadForm;
@@ -18,6 +18,8 @@ const content = landingContent.leadForm;
 export function LeadForm({ request = submitLead }: LeadFormProps) {
   const [state, dispatch] = useReducer(leadFormReducer, initialLeadFormState);
   const idempotencyKey = useRef<string | undefined>(undefined);
+  const [formStartedAt] = useState(() => Date.now());
+  const honeypot = useRef<HTMLInputElement | null>(null);
   const firstInvalidField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const redirectTimer = useRef<number | undefined>(undefined);
 
@@ -39,6 +41,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
   }, [state.status, state.telegramDeepLink]);
 
   function update(field: keyof LeadFormValues, value: string | boolean) {
+    idempotencyKey.current = undefined;
     dispatch({ type: "UPDATE", field, value });
   }
 
@@ -60,7 +63,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
     idempotencyKey.current = key;
     dispatch({ type: "SUBMIT" });
     try {
-      const response = await request(toLeadRequest(state.values), key);
+      const response = await request(toLeadRequest(state.values, formStartedAt, honeypot.current?.value ?? ""), key);
       const payload = await safeJson(response);
       if (response.status === 201 && isLeadSuccess(payload)) {
         dispatch({ type: "EMAIL_ACCEPTED", telegramDeepLink: payload.telegramDeepLink });
@@ -68,7 +71,12 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
       }
 
       if (response.status === 422 && isLeadError(payload)) {
-        dispatch({ type: "VALIDATION_ERROR", fieldErrors: mapServerFieldErrors(payload.error.fieldErrors) });
+        const serverFieldErrors = mapServerFieldErrors(payload.error.fieldErrors);
+        if (Object.keys(serverFieldErrors).length === 0) {
+          dispatch({ type: "VALIDATION_ERROR", fieldErrors: {}, message: "Проверьте введённые данные и повторите попытку." });
+          return;
+        }
+        dispatch({ type: "VALIDATION_ERROR", fieldErrors: serverFieldErrors });
         window.requestAnimationFrame(() => firstInvalidField.current?.focus());
         return;
       }
@@ -140,7 +148,15 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
       </div>
       <div aria-hidden="true" className={styles.honeypot}>
         <label htmlFor="lead-website">Website</label>
-        <input autoComplete="off" id="lead-website" name="website" tabIndex={-1} type="text" />
+        <input
+          autoComplete="off"
+          id="lead-website"
+          name="website"
+          onChange={() => { idempotencyKey.current = undefined; }}
+          ref={honeypot}
+          tabIndex={-1}
+          type="text"
+        />
       </div>
       <button className={styles.submit} disabled={isSubmitting} type="submit">
         {isSubmitting ? "Отправляем…" : content.submitLabel}
@@ -174,14 +190,14 @@ function validate(values: LeadFormValues): Partial<Record<keyof LeadFormValues, 
   return errors;
 }
 
-function toLeadRequest(values: LeadFormValues): LeadSubmitRequest {
+function toLeadRequest(values: LeadFormValues, startedAt: number, website: string): LeadSubmitClientRequest {
   return {
     name: values.name.trim(),
     phone: values.phone.trim(),
     ...(values.goal.trim() ? { goal: values.goal.trim() } : {}),
     consent: true,
-    website: "",
-    startedAt: Date.now(),
+    website,
+    startedAt,
   };
 }
 

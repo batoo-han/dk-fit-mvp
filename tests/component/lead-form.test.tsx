@@ -1,9 +1,10 @@
+import { readFile } from "node:fs/promises";
+
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LeadForm } from "../../src/features/lead-form/LeadForm";
-import { submitLead } from "../../src/features/lead-form/submit-lead";
-import type { LeadSubmitRequest } from "../../src/lib/contracts/lead";
+import { submitLead, type LeadSubmitClientRequest } from "../../src/features/lead-form/submit-lead";
 
 afterEach(() => {
   cleanup();
@@ -31,6 +32,15 @@ describe("LeadForm", () => {
     expect(screen.getByRole("status")).not.toBeNull();
   });
 
+  it("keeps 44px touch targets and visible keyboard focus for consent controls", async () => {
+    const css = await readFile("src/features/lead-form/LeadForm.module.css", "utf8");
+
+    expect(css).toMatch(/\.consent input\s*\{[^}]*block-size:\s*2\.75rem;/su);
+    expect(css).toMatch(/\.consent input\s*\{[^}]*inline-size:\s*2\.75rem;/su);
+    expect(css).toMatch(/\.privacy\s*\{[^}]*min-block-size:\s*2\.75rem;/su);
+    expect(css).toMatch(/\.privacy:focus-visible\s*\{/u);
+  });
+
   it("marks the first invalid field and focuses it after submit", async () => {
     renderForm();
     fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
@@ -42,7 +52,7 @@ describe("LeadForm", () => {
   });
 
   it("uses one idempotency key while a request is pending and disables duplicate submits", async () => {
-    const request = vi.fn<(payload: LeadSubmitRequest, idempotencyKey: string) => Promise<Response>>(() => new Promise<Response>(() => undefined));
+    const request = vi.fn<(payload: LeadSubmitClientRequest, idempotencyKey: string) => Promise<Response>>(() => new Promise<Response>(() => undefined));
     render(<LeadForm request={request} />);
     fillValidLead();
 
@@ -68,6 +78,75 @@ describe("LeadForm", () => {
 
     expect(await screen.findByText("Заявка отправлена. Открываем Telegram…")).not.toBeNull();
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://t.me/test_bot?start=registered"));
+  });
+
+  it("starts timing when the form mounts so a valid interaction passes the server two-second rule", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const request = vi.fn(async (payload: LeadSubmitClientRequest) => new Response(
+      JSON.stringify(
+        Date.now() - payload.startedAt >= 2_000
+          ? { ok: true, status: "email_accepted", telegramDeepLink: "https://t.me/test_bot?start=registered" }
+          : { ok: false, error: { code: "INVALID_REQUEST", requestId: "request-id" } },
+      ),
+      { status: Date.now() - payload.startedAt >= 2_000 ? 201 : 422 },
+    ));
+    const assign = vi.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    now.mockReturnValue(3_001);
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    expect(await screen.findByText("Заявка отправлена. Открываем Telegram…")).not.toBeNull();
+    expect(request.mock.calls[0]?.[0].startedAt).toBe(1_000);
+  });
+
+  it("retains the form start time for an unchanged network retry", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const request = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: { code: "EMAIL_UNAVAILABLE", requestId: "request-id" } }), { status: 503 }));
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    now.mockReturnValue(3_001);
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+    expect(await screen.findByText("Не удалось отправить заявку. Проверьте подключение и повторите попытку.")).not.toBeNull();
+    now.mockReturnValue(6_001);
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls[0]?.[0].startedAt).toBe(1_000);
+    expect(request.mock.calls[1]?.[0].startedAt).toBe(1_000);
+  });
+
+  it("submits the actual honeypot value", async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code: "INVALID_REQUEST", requestId: "request-id" } }), { status: 422 }),
+    );
+    render(<LeadForm request={request} />);
+    fillValidLead();
+    const honeypot = document.getElementById("lead-website");
+    expect(honeypot).toBeInstanceOf(HTMLInputElement);
+    fireEvent.change(honeypot!, { target: { value: "bot.example" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    expect(request.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ website: "bot.example" }));
+  });
+
+  it("announces a generic 422 when the server has no field error", async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code: "INVALID_REQUEST", requestId: "request-id" } }), { status: 422 }),
+    );
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Проверьте введённые данные и повторите попытку."));
   });
 
   it.each([
@@ -100,6 +179,22 @@ describe("LeadForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
     expect(request.mock.calls[1]?.[1]).toBe(request.mock.calls[0]?.[1]);
+  });
+
+  it("creates a new idempotency key after the lead is edited", async () => {
+    const request = vi.fn()
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: { code: "EMAIL_UNAVAILABLE", requestId: "request-id" } }), { status: 503 }));
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+    expect(await screen.findByText("Не удалось отправить заявку. Проверьте подключение и повторите попытку.")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Анна Петрова" } });
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(request.mock.calls[1]?.[1]).not.toBe(request.mock.calls[0]?.[1]);
   });
 
   it("does not submit again when remounted after browser Back", () => {

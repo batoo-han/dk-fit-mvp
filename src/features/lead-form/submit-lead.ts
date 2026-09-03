@@ -7,8 +7,12 @@ type SubmitLeadOptions = {
   timeoutMs?: number;
 };
 
+export type LeadSubmitClientRequest = Omit<LeadSubmitRequest, "website"> & {
+  website?: string;
+};
+
 export async function submitLead(
-  request: LeadSubmitRequest,
+  request: LeadSubmitClientRequest,
   idempotencyKey: string,
   { fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS }: SubmitLeadOptions = {},
 ): Promise<Response> {

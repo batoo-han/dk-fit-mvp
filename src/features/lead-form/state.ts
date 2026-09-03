@@ -32,7 +32,7 @@ export const initialLeadFormState: LeadFormState = {
 export type LeadFormAction =
   | { type: "UPDATE"; field: keyof LeadFormValues; value: string | boolean }
   | { type: "VALIDATE" }
-  | { type: "VALIDATION_ERROR"; fieldErrors: Partial<Record<keyof LeadFormValues, string>> }
+  | { type: "VALIDATION_ERROR"; fieldErrors: Partial<Record<keyof LeadFormValues, string>>; message?: string }
   | { type: "SUBMIT" }
   | { type: "EMAIL_ACCEPTED"; telegramDeepLink: string }
   | { type: "REDIRECT" }
@@ -52,7 +52,7 @@ export function leadFormReducer(state: LeadFormState, action: LeadFormAction): L
     case "VALIDATE":
       return { ...state, status: "validating", message: undefined, fieldErrors: {} };
     case "VALIDATION_ERROR":
-      return { ...state, status: "validation_error", fieldErrors: action.fieldErrors };
+      return { ...state, status: "validation_error", fieldErrors: action.fieldErrors, message: action.message };
     case "SUBMIT":
       return { ...state, status: "submitting", message: undefined, fieldErrors: {} };
     case "EMAIL_ACCEPTED":
