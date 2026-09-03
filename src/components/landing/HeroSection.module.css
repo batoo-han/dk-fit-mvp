@@ -18,6 +18,7 @@
   align-items: end;
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  isolation: isolate;
   min-block-size: 0;
 }
 
@@ -75,28 +76,32 @@
   align-self: stretch;
   isolation: isolate;
   min-block-size: 30rem;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
+  z-index: 1;
 }
 
 .word {
   color: var(--color-burgundy);
   font-family: var(--font-display);
-  font-size: clamp(17rem, 37vw, 36rem);
+  font-size: clamp(24rem, 40vw, 38rem);
   font-weight: 600;
-  inset: auto -0.1em -0.17em -0.13em;
+  inset: clamp(1.25rem, 2.5vw, 2.5rem) -0.12em auto -0.37em;
   letter-spacing: -0.13em;
   line-height: 0.75;
   opacity: 0.76;
-  overflow: hidden;
   position: absolute;
   pointer-events: none;
-  z-index: 3;
+  transform: scaleY(1.25);
+  transform-origin: top;
+  z-index: 1;
 }
 
 .image {
   block-size: 100%;
-  inline-size: 100%;
+  inline-size: calc(100% + 7rem);
+  margin-inline-start: -7rem;
+  mix-blend-mode: screen;
   object-fit: cover;
   object-position: center bottom;
   position: relative;
@@ -148,6 +153,7 @@
   .portrait {
     block-size: min(116vw, 43rem);
     min-block-size: 26rem;
+    overflow: hidden;
   }
 
   .word {
@@ -156,6 +162,9 @@
   }
 
   .image {
+    inline-size: 100%;
+    margin-inline-start: 0;
+    mix-blend-mode: normal;
     object-position: center 35%;
   }
 }
