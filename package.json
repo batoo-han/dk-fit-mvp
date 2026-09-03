@@ -1,0 +1,47 @@
+{
+  "name": "dk-fit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "check:env": "node --conditions=react-server scripts/check-env.mjs",
+    "smoke:smtp": "node --conditions=react-server scripts/smoke-production.mjs",
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run verify:assets && npm run test:e2e"
+  },
+  "dependencies": {
+    "next": "16.3.4",
+    "nodemailer": "9.1.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "redis": "6.2.1",
+    "server-only": "^0.0.1",
+    "sharp": "0.35.4",
+    "zod": "4.5.4"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.4.1",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.4",
+    "jsdom": "^29.1.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  }
+}

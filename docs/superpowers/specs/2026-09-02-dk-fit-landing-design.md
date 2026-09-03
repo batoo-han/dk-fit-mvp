@@ -18,7 +18,7 @@
 - favicon/brand mark D&K Fit;
 - форма: имя, телефон, необязательная цель тренировок, согласие на обработку данных;
 - серверная валидация и защита от простого спама;
-- SMTP-уведомление на `superhumansmm@yandex.ru`;
+- SMTP-уведомление на server-only адрес из `LEAD_RECIPIENT_EMAIL`;
 - безопасный Telegram deep link;
 - Telegram webhook и ответ только на `/start`;
 - техническая страница политики обработки данных;
@@ -175,7 +175,9 @@ idle -> validating -> submitting -> email_accepted -> redirecting
 
 ## 6. Письмо
 
-Получатель зафиксирован: `superhumansmm@yandex.ru`.
+Получатель задаётся обязательным server-only `LEAD_RECIPIENT_EMAIL`. Значение
+проходит валидацию одного безопасного email-адреса, не попадает в client bundle,
+публичный HTML или логи и не может быть заменено клиентским запросом.
 
 Subject:
 
@@ -261,6 +263,7 @@ SMTP_SECURE
 SMTP_USER
 SMTP_PASSWORD
 SMTP_FROM
+LEAD_RECIPIENT_EMAIL
 SMTP_CONNECTION_TIMEOUT_MS
 SMTP_SOCKET_TIMEOUT_MS
 TELEGRAM_BOT_TOKEN

@@ -18,7 +18,7 @@
 - Публичный UI на русском; бренд пишется ровно `D&K Fit`.
 - Публичный текст не содержит неподтверждённых регалий, цифр, отзывов или гарантий.
 - Форма собирает имя, телефон, необязательную цель и обязательное согласие.
-- Письмо уходит только на `superhumansmm@yandex.ru` и имеет точный шаблон из spec.
+- Письмо уходит только на server-only адрес из `LEAD_RECIPIENT_EMAIL` и имеет точный шаблон из spec.
 - Telegram redirect разрешён только после SMTP `accepted`.
 - Бот отвечает ровно `Спасибо за регистрацию!` только на `/start`; другие сообщения игнорируются.
 - Пользователь обязан нажать `Start / Запустить`; бот не может первым написать пользователю.
@@ -478,7 +478,7 @@ Expected exact fixture:
 Цель тренировок: Стать сильнее
 ```
 
-Also assert recipient `superhumansmm@yandex.ru`, subject `D&K Fit — новая заявка`, UTF-8 and no user input in headers.
+Also assert the validated `LEAD_RECIPIENT_EMAIL` fixture recipient, subject `D&K Fit — новая заявка`, UTF-8 and no user input in headers.
 
 - [ ] **Step 2: Implement Nodemailer adapter**
 
@@ -663,7 +663,7 @@ Run `npm run check:env`; confirm URL/hosting, author FIO, one active SMTP accoun
 
 - [ ] **Step 2: Verify active SMTP before deploy**
 
-Run Nodemailer `verify()` without printing secrets. Send one marked real test to `superhumansmm@yandex.ru`; compare subject/body to golden fixture and check Spam.
+Run Nodemailer `verify()` without printing secrets. Send one marked real test to an owner-approved recipient; compare subject/body to golden fixture and check Spam. The public handler recipient remains the server-only `LEAD_RECIPIENT_EMAIL` value.
 
 - [ ] **Step 3: Deploy immutable container and bind webhook**
 
