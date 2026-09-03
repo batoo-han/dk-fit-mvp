@@ -10,6 +10,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+    include: [
+      "tests/unit/**/*.{test,spec}.{ts,tsx}",
+      "tests/component/**/*.{test,spec}.{ts,tsx}",
+      "tests/integration/**/*.{test,spec}.{ts,tsx}",
+    ],
   },
 });
