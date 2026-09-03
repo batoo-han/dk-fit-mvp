@@ -33,9 +33,17 @@ describe("getServerEnv", () => {
     const env = getServerEnv(environment());
 
     expect(env.publicSiteUrl.href).toBe("https://dk-fit.test/");
+    expect(env.runtimeMode).toBe("production");
     expect(env.smtp).toMatchObject({ port: 465, secure: true });
     expect(env.leadRecipientEmail).toBe("lead-recipient@example.test");
     expect(env.telegram.username).toBe("dk_fit_test_bot");
+  });
+
+  it("fails closed to production origin policy when NODE_ENV is absent", () => {
+    expect(getServerEnv(environment({ NODE_ENV: undefined })).runtimeMode).toBe("production");
+    expect(() => getServerEnv(environment({ NODE_ENV: undefined, PUBLIC_SITE_URL: "http://dk-fit.test" }))).toThrow(
+      "PUBLIC_SITE_URL",
+    );
   });
 
   it("fails with the missing required key name", () => {

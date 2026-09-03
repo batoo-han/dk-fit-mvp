@@ -52,6 +52,7 @@ type RawEnvironment = z.input<typeof rawEnvironmentSchema>;
 type ParsedEnvironment = z.output<typeof rawEnvironmentSchema>;
 
 export type ServerEnv = {
+  runtimeMode: "development" | "test" | "production";
   publicSiteUrl: URL;
   siteAuthorFullName: string;
   leadRecipientEmail: string;
@@ -86,14 +87,14 @@ function invalidKeys(error: z.ZodError): string[] {
   return [...new Set(error.issues.map((issue) => String(issue.path[0])))].sort();
 }
 
-function parsePublicSiteUrl(environment: ParsedEnvironment): URL {
+function parsePublicSiteUrl(publicSiteUrl: string, runtimeMode: ServerEnv["runtimeMode"]): URL {
   try {
-    const url = new URL(environment.PUBLIC_SITE_URL);
+    const url = new URL(publicSiteUrl);
 
     if (!["http:", "https:"].includes(url.protocol)) {
       throw new Error("Unsupported protocol");
     }
-    if (environment.NODE_ENV === "production" && url.protocol !== "https:") {
+    if (runtimeMode === "production" && url.protocol !== "https:") {
       throw new Error("Production requires HTTPS");
     }
 
@@ -122,9 +123,11 @@ export function getServerEnv(source: Record<string, string | undefined> = proces
   }
 
   const environment = result.data;
+  const runtimeMode = environment.NODE_ENV ?? "production";
 
   return {
-    publicSiteUrl: parsePublicSiteUrl(environment),
+    runtimeMode,
+    publicSiteUrl: parsePublicSiteUrl(environment.PUBLIC_SITE_URL, runtimeMode),
     siteAuthorFullName: environment.SITE_AUTHOR_FULL_NAME,
     leadRecipientEmail: environment.LEAD_RECIPIENT_EMAIL,
     smtp: {

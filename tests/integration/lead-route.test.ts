@@ -27,16 +27,18 @@ function leadRequest({
   body = leadPayload(),
   contentType = "application/json",
   origin = "https://dk-fit.test",
+  requestUrl = "https://dk-fit.test/api/leads",
   idempotencyKey = IDEMPOTENCY_KEY,
   forwardedFor = "203.0.113.42",
 }: {
   body?: unknown;
   contentType?: string;
   origin?: string;
+  requestUrl?: string;
   idempotencyKey?: string;
   forwardedFor?: string | null;
 } = {}) {
-  return new Request("https://dk-fit.test/api/leads", {
+  return new Request(requestUrl, {
     method: "POST",
     headers: {
       "content-type": contentType,
@@ -51,6 +53,7 @@ function leadRequest({
 function handlerWith(overrides: Partial<LeadRouteDependencies> = {}) {
   const dependencies: LeadRouteDependencies = {
     env: {
+      runtimeMode: "test",
       publicSiteUrl: new URL("https://dk-fit.test"),
       siteAuthorFullName: "Тестовый Автор",
       leadRecipientEmail: "lead-recipient@example.test",
@@ -106,6 +109,87 @@ describe("POST /api/leads", () => {
 
     await expectSafeError(response, 403, "INVALID_ORIGIN");
     expect(dependencies.idempotency.claimLead).not.toHaveBeenCalled();
+    expect(dependencies.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it.each(["http://localhost:3000", "http://127.0.0.1:3000"])(
+    "accepts a local same-origin lead only when the explicit runtime mode is development: %s",
+    async (localOrigin) => {
+    const { handler, dependencies } = handlerWith({
+      env: {
+        publicSiteUrl: new URL("https://dnk.batoohan.ru"),
+        siteAuthorFullName: "Тестовый Автор",
+        leadRecipientEmail: "lead-recipient@example.test",
+        telegram: { username: "DandK_FitBody_bot" },
+        runtimeMode: "development",
+      },
+    });
+
+      const response = await handler(leadRequest({ origin: localOrigin, requestUrl: `${localOrigin}/api/leads` }));
+
+      await expect(response.json()).resolves.toEqual({
+        ok: true,
+        status: "email_accepted",
+        telegramDeepLink: "https://t.me/DandK_FitBody_bot?start=registered",
+      });
+      expect(dependencies.sendEmail).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("rejects a localhost same-origin lead when the explicit runtime mode is production", async () => {
+    const { handler, dependencies } = handlerWith({
+      env: {
+        publicSiteUrl: new URL("https://dnk.batoohan.ru"),
+        siteAuthorFullName: "Тестовый Автор",
+        leadRecipientEmail: "lead-recipient@example.test",
+        telegram: { username: "DandK_FitBody_bot" },
+        runtimeMode: "production",
+      },
+    });
+
+    await expectSafeError(
+      await handler(leadRequest({ origin: "http://127.0.0.1:3000", requestUrl: "http://127.0.0.1:3000/api/leads" })),
+      403,
+      "INVALID_ORIGIN",
+    );
+    expect(dependencies.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("accepts the configured public origin in production", async () => {
+    const { handler, dependencies } = handlerWith({
+      env: {
+        publicSiteUrl: new URL("https://dnk.batoohan.ru"),
+        siteAuthorFullName: "Тестовый Автор",
+        leadRecipientEmail: "lead-recipient@example.test",
+        telegram: { username: "test_bot" },
+        runtimeMode: "production",
+      },
+    });
+
+    const response = await handler(
+      leadRequest({ origin: "https://dnk.batoohan.ru", requestUrl: "https://dnk.batoohan.ru/api/leads" }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(dependencies.sendEmail).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a mismatched origin even in development", async () => {
+    const { handler, dependencies } = handlerWith({
+      env: {
+        publicSiteUrl: new URL("https://dnk.batoohan.ru"),
+        siteAuthorFullName: "Тестовый Автор",
+        leadRecipientEmail: "lead-recipient@example.test",
+        telegram: { username: "test_bot" },
+        runtimeMode: "development",
+      },
+    });
+
+    await expectSafeError(
+      await handler(leadRequest({ origin: "http://attacker.test", requestUrl: "http://localhost:3000/api/leads" })),
+      403,
+      "INVALID_ORIGIN",
+    );
     expect(dependencies.sendEmail).not.toHaveBeenCalled();
   });
 

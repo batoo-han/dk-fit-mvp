@@ -10,7 +10,7 @@ import { createLeadRateLimiter, type LeadRateLimiter } from "../../../lib/leads/
 import { submitLead } from "../../../lib/leads/service";
 import { getRedisClient } from "../../../lib/redis/client";
 import { fingerprintPhone } from "../../../lib/security/fingerprint";
-import { hasSameOrigin } from "../../../lib/security/origin";
+import { hasAllowedLeadOrigin, hasSameOrigin } from "../../../lib/security/origin";
 import { createRequestId } from "../../../lib/security/request-id";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ const MAX_BODY_BYTES = 8 * 1024;
 const MIN_SUBMIT_DELAY_MS = 2_000;
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
-type RouteEnvironment = Pick<ServerEnv, "publicSiteUrl" | "siteAuthorFullName" | "leadRecipientEmail"> & {
+type RouteEnvironment = Pick<ServerEnv, "runtimeMode" | "publicSiteUrl" | "siteAuthorFullName" | "leadRecipientEmail"> & {
   telegram: Pick<ServerEnv["telegram"], "username">;
 };
 
@@ -69,7 +69,7 @@ async function handleLeadRequest(
       return respond(errorResponse(400, "INVALID_REQUEST", requestId), 400);
     }
 
-    if (!hasSameOrigin(request.headers.get("origin"), dependencies.env.publicSiteUrl)) {
+    if (!hasAllowedLeadOrigin(request.headers.get("origin"), request.url, dependencies.env)) {
       return respond(errorResponse(403, "INVALID_ORIGIN", requestId), 403);
     }
 

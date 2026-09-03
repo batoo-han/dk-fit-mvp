@@ -32,6 +32,13 @@ Docker daemon и отдельно разрешённых SMTP/Telegram/deploy sm
 
 Production Compose reads `.env` by default; create it locally from `.env.example` and keep it outside Git. For an explicit deployment-specific file, set `DK_FIT_ENV_FILE` to its path before running Compose. The `app` service always runs with `NODE_ENV=production`, even if the selected env file contains another value.
 
+`NODE_ENV` is resolved once into the server-side route dependencies. In production,
+`POST /api/leads` accepts only the configured HTTPS `PUBLIC_SITE_URL`; it never
+trusts an arbitrary `Host`. A local preview may use `NODE_ENV=development`, which
+also permits only an exact same-origin `localhost` or `127.0.0.1` request. The
+example username `DandK_FitBody_bot` is public configuration only; keep its token
+and all other secrets out of the repository.
+
 По умолчанию порт приложения публикуется только на loopback хоста:
 `127.0.0.1:${DK_FIT_APP_PORT:-3000}`. Этот вариант рассчитан на доверенный
 reverse proxy на том же хосте. Proxy обязан **перезаписывать**, а не дополнять
