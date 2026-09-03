@@ -215,6 +215,7 @@ export async function withQuarantinedEnvironment({
   quarantineDirectory,
   recoveryDirectory = path.resolve(".dk-fit-e2e-recovery"),
   renameFile = rename,
+  pathExists: doesPathExist = pathExists,
 }, run) {
   await mkdir(quarantineDirectory, { recursive: true });
   const quarantined = [];
@@ -226,7 +227,7 @@ export async function withQuarantinedEnvironment({
       quarantined.push({ environmentPath, quarantinePath });
     } catch (error) {
       if (!hasErrorCode(error, "ENOENT")) {
-        await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError: error });
+        await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, pathExists: doesPathExist, restorationError: error });
       }
     }
   }
@@ -234,11 +235,11 @@ export async function withQuarantinedEnvironment({
   try {
     return await run();
   } finally {
-    await restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile });
+    await restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, pathExists: doesPathExist });
   }
 }
 
-async function restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile }) {
+async function restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, pathExists }) {
   for (const entry of [...quarantined].reverse()) {
     try {
       if (await pathExists(entry.environmentPath)) {
@@ -247,17 +248,26 @@ async function restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, r
       await renameFile(entry.quarantinePath, entry.environmentPath);
       quarantined.splice(quarantined.indexOf(entry), 1);
     } catch (error) {
-      await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError: error });
+      await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, pathExists, restorationError: error });
     }
   }
 }
 
-async function preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError }) {
+async function preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, pathExists, restorationError }) {
   const remainingEntries = [];
-  for (const entry of quarantined) {
-    if (await pathExists(entry.quarantinePath)) {
-      remainingEntries.push(entry);
+  try {
+    for (const entry of quarantined) {
+      if (await pathExists(entry.quarantinePath)) {
+        remainingEntries.push(entry);
+      }
     }
+  } catch (discoveryError) {
+    throw createPreserveTemporaryRootError({
+      quarantined,
+      recoveryDirectory,
+      restorationError,
+      recoveryError: discoveryError,
+    });
   }
 
   if (remainingEntries.length === 0) {
@@ -274,12 +284,23 @@ async function preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, 
       quarantined.splice(quarantined.indexOf(entry), 1);
     }
   } catch (recoveryError) {
-    const error = new Error(`Controlled E2E could not restore ${filenames.join(", ")}; files remain quarantined at ${quarantined[0] ? path.dirname(quarantined[0].quarantinePath) : "unknown"}. Temporary cleanup was skipped. Restore error code: ${errorCode(restorationError)}; recovery error code: ${errorCode(recoveryError)}`);
-    error.preserveTemporaryRoot = true;
-    throw error;
+    throw createPreserveTemporaryRootError({
+      quarantined: remainingEntries,
+      recoveryDirectory,
+      restorationError,
+      recoveryError,
+    });
   }
 
   throw new Error(`Controlled E2E could not restore ${filenames.join(", ")}; files were recovered at ${recoveryPath}. Restore error code: ${errorCode(restorationError)}`);
+}
+
+function createPreserveTemporaryRootError({ quarantined, recoveryDirectory, restorationError, recoveryError }) {
+  const filenames = quarantined.map(({ environmentPath }) => path.basename(environmentPath));
+  const quarantinePath = quarantined[0] ? path.dirname(quarantined[0].quarantinePath) : "unknown";
+  const error = new Error(`Controlled E2E could not safely recover ${filenames.join(", ") || "environment files"}; files may remain quarantined at ${quarantinePath}. Recovery directory was preserved at ${recoveryDirectory}. Temporary cleanup was skipped. Restore error code: ${errorCode(restorationError)}; recovery error code: ${errorCode(recoveryError)}`);
+  error.preserveTemporaryRoot = true;
+  return error;
 }
 
 async function pathExists(targetPath) {

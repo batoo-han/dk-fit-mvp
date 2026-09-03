@@ -107,6 +107,58 @@ describe("production E2E harness", () => {
     }
   });
 
+  it("retains the temporary quarantine and recovery root when discovery cannot verify a remaining environment file", async () => {
+    const temporaryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-discovery-failure-"));
+    const recoveryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-recovery-root-"));
+    const projectRoot = path.join(temporaryRoot, "project");
+    const quarantineDirectory = path.join(temporaryRoot, "quarantine");
+    const recoveryDirectory = path.join(recoveryRoot, "durable-recovery");
+    const environmentPath = path.join(projectRoot, ".env");
+    const recoverySentinel = path.join(recoveryDirectory, "keep-me");
+    await mkdir(projectRoot, { recursive: true });
+    await mkdir(recoveryDirectory, { recursive: true });
+    await writeFile(environmentPath, "fixture");
+    await writeFile(recoverySentinel, "recovery state");
+
+    try {
+      let error: unknown;
+      try {
+        await withQuarantinedEnvironment({
+          environmentPaths: [environmentPath],
+          quarantineDirectory,
+          recoveryDirectory,
+          renameFile: async (from, to) => {
+            if (to === environmentPath) {
+              throw Object.assign(new Error("simulated restore failure"), { code: "EPERM" });
+            }
+            await rename(from, to);
+          },
+          pathExists: async (targetPath) => {
+            if (targetPath.includes(".env.e2e-quarantine-")) {
+              throw Object.assign(new Error("simulated discovery denial"), { code: "EACCES" });
+            }
+            return false;
+          },
+        }, async () => undefined);
+      } catch (caught) {
+        error = caught;
+      }
+
+      expect(error).toMatchObject({ preserveTemporaryRoot: true });
+      expect(String(error)).toMatch(/\.env.*quarantined.*durable-recovery.*EACCES/iu);
+
+      if (!(error && typeof error === "object" && "preserveTemporaryRoot" in error && error.preserveTemporaryRoot === true)) {
+        await cleanupProductionE2eWorkspace({ temporaryRoot });
+      }
+
+      await expect(access(path.join(quarantineDirectory, ".env.e2e-quarantine-0-.env"))).resolves.toBeUndefined();
+      await expect(access(recoverySentinel)).resolves.toBeUndefined();
+    } finally {
+      await rm(temporaryRoot, { force: true, recursive: true });
+      await rm(recoveryRoot, { force: true, recursive: true });
+    }
+  });
+
   it("cleans up the owned temporary production E2E runtime", async () => {
     const temporaryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-cleanup-"));
     await writeFile(path.join(temporaryRoot, "owned-runtime.txt"), "temporary");

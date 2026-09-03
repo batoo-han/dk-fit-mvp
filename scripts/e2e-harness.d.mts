@@ -40,6 +40,7 @@ export function withQuarantinedEnvironment<T>(options: {
   quarantineDirectory: string;
   recoveryDirectory?: string;
   renameFile?: (from: string, to: string) => Promise<void>;
+  pathExists?: (targetPath: string) => Promise<boolean>;
 }, run: () => Promise<T>): Promise<T>;
 export function cleanupProductionE2eWorkspace(options: {
   temporaryRoot: string;
