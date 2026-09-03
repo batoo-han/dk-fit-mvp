@@ -1,0 +1,45 @@
+.field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.field label {
+  color: var(--color-text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field textarea {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font: inherit;
+  inline-size: 100%;
+  min-block-size: var(--control-height);
+  padding: 0.75rem 0.875rem;
+}
+
+.field textarea {
+  min-block-size: 7rem;
+  resize: vertical;
+}
+
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: var(--color-error);
+}
+
+.field input:focus-visible,
+.field textarea:focus-visible {
+  outline: 3px solid var(--color-gold-focus);
+  outline-offset: 2px;
+}
+
+.error {
+  color: var(--color-error);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}

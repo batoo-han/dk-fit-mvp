@@ -1,6 +1,7 @@
 import Image from "next/image";
 
 import type { LandingContent } from "../../content/landing-content.types";
+import { LeadForm } from "../../features/lead-form/LeadForm";
 import { ProcessSteps } from "./ProcessSteps";
 import styles from "./TrainerProcessSection.module.css";
 
@@ -33,6 +34,7 @@ export function TrainerProcessSection({ content }: TrainerProcessSectionProps) {
         </div>
         <div aria-labelledby="lead-form-title" className={styles.formSlot} id="lead-form">
           <h2 id="lead-form-title">{content.leadForm.title}</h2>
+          <LeadForm />
         </div>
       </div>
     </section>
