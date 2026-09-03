@@ -8,7 +8,7 @@ export default defineConfig({
   webServer: {
     command:
       "node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3210",
-    url: "http://127.0.0.1:3210",
+    port: 3210,
     reuseExistingServer: !process.env.CI,
   },
   projects: [
