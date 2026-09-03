@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
     "check:env": "node --conditions=react-server scripts/check-env.mjs",
+    "smoke:smtp": "node --conditions=react-server scripts/smoke-production.mjs",
     "verify:assets": "node scripts/verify-assets.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run verify:assets && npm run test:e2e"
   },
