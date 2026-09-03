@@ -51,6 +51,29 @@ describe("production SMTP smoke", () => {
     expect(JSON.stringify(result)).not.toContain(completeEnvironment.SMTP_PASSWORD);
   });
 
+  it.each([
+    ["missing NODE_ENV", { NODE_ENV: undefined }, ["NODE_ENV"]],
+    ["a development NODE_ENV", { NODE_ENV: "development" }, ["NODE_ENV"]],
+    ["an HTTP public URL", { PUBLIC_SITE_URL: "http://dk-fit.test" }, ["PUBLIC_SITE_URL"]],
+  ])("rejects %s during release preflight before SMTP side effects", async (_scenario, overrides, keys) => {
+    const verify = vi.fn().mockResolvedValue(undefined);
+    const sendMail = vi.fn().mockResolvedValue({ accepted: ["release-recipient@example.test"] });
+    const createTransport = vi.fn().mockReturnValue({ verify, sendMail });
+    const environment = { ...completeEnvironment, ...overrides };
+
+    expect(runPreflight(environment)).toEqual({ ok: false, keys });
+    await expect(
+      runSmtpSmoke({
+        arguments: ["--to", "release-recipient@example.test", "--confirm-send"],
+        environment,
+        createTransport,
+      }),
+    ).rejects.toThrow("CONFIGURATION_ERROR");
+    expect(createTransport).not.toHaveBeenCalled();
+    expect(verify).not.toHaveBeenCalled();
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
   it("verifies SMTP and treats delivery as successful only after the explicit recipient is accepted", async () => {
     const verify = vi.fn().mockResolvedValue(undefined);
     const sendMail = vi.fn().mockResolvedValue({ accepted: ["release-recipient@example.test"] });

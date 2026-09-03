@@ -49,6 +49,10 @@ export function parseSmokeArguments(argumentsList) {
 }
 
 export function runPreflight(environment = process.env) {
+  if (environment.NODE_ENV !== "production") {
+    return { ok: false, keys: ["NODE_ENV"] };
+  }
+
   try {
     getServerEnv(environment);
     return { ok: true };

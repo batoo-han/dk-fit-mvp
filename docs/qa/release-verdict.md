@@ -8,6 +8,7 @@ or performed during this task.
 | Gate | Status | Evidence / required next step |
 | --- | --- | --- |
 | Safe production preflight | BLOCKED | `PUBLIC_SITE_URL` is currently missing or invalid according to the safe check. It reports key names only; no value is recorded here. |
+| Release context | BLOCKED | The release smoke requires explicit `NODE_ENV=production`; a missing or development value is rejected before SMTP work. |
 | Node runtime | BLOCKED LOCALLY | The locally selected `node` is v22.15.0; release tests require Node 24. |
 | Docker Compose | BLOCKED LOCALLY | Docker daemon is unavailable locally; no image build or Compose validation was run. |
 | SMTP verify and explicit smoke | NOT RUN | No external SMTP verification or email send was authorized. The smoke tool requires an explicit recipient and `--confirm-send`. |

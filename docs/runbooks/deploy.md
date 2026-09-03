@@ -11,7 +11,9 @@ production action.
 
 ## Preflight
 
-1. Use Node 24 (`node --version` must report a v24 release).
+1. Use Node 24 (`node --version` must report a v24 release) with an explicit
+   `NODE_ENV=production`. The release-only smoke rejects a missing or non-production
+   value before it constructs an SMTP transport.
 2. Obtain the owner-provided production URL/hosting, author full name, one SMTP
    account, Telegram bot credentials, legal operator details, and asset-rights
    confirmation. Do not place any value in a command, terminal capture, or
