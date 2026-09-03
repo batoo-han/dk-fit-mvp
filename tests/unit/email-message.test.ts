@@ -38,4 +38,13 @@ describe("lead email message", () => {
     expect(JSON.stringify({ to: message.to, subject: message.subject })).not.toContain("Анна Иванова");
     expect(JSON.stringify({ to: message.to, subject: message.subject })).not.toContain("900");
   });
+
+  it("uses the approved fallback for an explicitly blank training goal", () => {
+    const message = formatLeadEmail(
+      { publicSiteUrl: new URL("https://dk-fit.test"), siteAuthorFullName: "Тестовый Автор" },
+      { name: "Анна Иванова", phone: "+7 900 000-00-00", goal: "" },
+    );
+
+    expect(message.text).toContain("Цель тренировок: Не указана");
+  });
 });

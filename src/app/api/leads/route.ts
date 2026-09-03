@@ -21,6 +21,14 @@ type RouteEnvironment = Pick<ServerEnv, "publicSiteUrl" | "siteAuthorFullName"> 
   telegram: Pick<ServerEnv["telegram"], "username">;
 };
 
+type ParsedJsonBody = { ok: true; value: unknown } | { ok: false };
+
+type PreparedLeadRequest = {
+  requestId: string;
+  startedAt: number;
+  payload: unknown;
+};
+
 export type LeadRouteDependencies = {
   env: RouteEnvironment;
   idempotency: LeadIdempotency;
@@ -33,8 +41,17 @@ export type LeadRouteDependencies = {
 
 export function createLeadRouteHandler(dependencies: LeadRouteDependencies) {
   return async function handleLead(request: Request): Promise<Response> {
-    const requestId = createRequestId();
-    const startedAt = dependencies.now();
+    return handleLeadRequest(request, dependencies);
+  };
+}
+
+async function handleLeadRequest(
+  request: Request,
+  dependencies: LeadRouteDependencies,
+  preparedRequest?: PreparedLeadRequest,
+): Promise<Response> {
+    const requestId = preparedRequest?.requestId ?? createRequestId();
+    const startedAt = preparedRequest?.startedAt ?? dependencies.now();
     let leadFingerprint: string | undefined;
     const respond = (response: Response, status: number) => {
       dependencies.log({ requestId, status, durationMs: Math.max(0, dependencies.now() - startedAt), leadFingerprint });
@@ -45,7 +62,7 @@ export function createLeadRouteHandler(dependencies: LeadRouteDependencies) {
       return respond(errorResponse(400, "INVALID_REQUEST", requestId), 400);
     }
 
-    const payload = await parseJsonBody(request);
+    const payload: ParsedJsonBody = preparedRequest ? { ok: true, value: preparedRequest.payload } : await parseJsonBody(request);
     if (!payload.ok) {
       return respond(errorResponse(400, "INVALID_REQUEST", requestId), 400);
     }
@@ -60,7 +77,7 @@ export function createLeadRouteHandler(dependencies: LeadRouteDependencies) {
     }
     const lead = validation.data;
     leadFingerprint = fingerprintPhone(lead.phone, dependencies.piiHashSecret);
-    if (lead.website !== "" || dependencies.now() - lead.startedAt < MIN_SUBMIT_DELAY_MS) {
+    if ((lead.website !== undefined && lead.website !== "") || dependencies.now() - lead.startedAt < MIN_SUBMIT_DELAY_MS) {
       return respond(errorResponse(422, "INVALID_REQUEST", requestId), 422);
     }
 
@@ -106,17 +123,21 @@ export function createLeadRouteHandler(dependencies: LeadRouteDependencies) {
       case "internal_error":
         return respond(errorResponse(500, "INTERNAL_ERROR", requestId), 500);
     }
-  };
 }
 
 export async function POST(request: Request): Promise<Response> {
   const requestId = createRequestId();
   const startedAt = Date.now();
+  const preflight = await prepareProductionRequest(request, requestId, startedAt);
+  if (!preflight.ok) {
+    return preflight.response;
+  }
+
   try {
     const env = getServerEnv();
     const redis = await getRedisClient();
     const mailer = createLeadMailer(env);
-    return await createLeadRouteHandler({
+    return await handleLeadRequest(request, {
       env,
       idempotency: createLeadIdempotency({ redis, piiHashSecret: env.piiHashSecret }),
       rateLimiter: createLeadRateLimiter({ redis, piiHashSecret: env.piiHashSecret }),
@@ -124,10 +145,39 @@ export async function POST(request: Request): Promise<Response> {
       sendEmail: (message) => mailer.send(message),
       log: (event) => console.info("lead_request", event),
       now: Date.now,
-    })(request);
+    }, preflight.preparedRequest);
   } catch {
     console.error("lead_route_unavailable", { requestId, status: 503, durationMs: Date.now() - startedAt });
     return errorResponse(503, "CONFIGURATION_ERROR", requestId);
+  }
+}
+
+async function prepareProductionRequest(
+  request: Request,
+  requestId: string,
+  startedAt: number,
+): Promise<{ ok: true; preparedRequest: PreparedLeadRequest } | { ok: false; response: Response }> {
+  if (!isJsonRequest(request)) {
+    return { ok: false, response: errorResponse(400, "INVALID_REQUEST", requestId) };
+  }
+
+  const payload = await parseJsonBody(request);
+  if (!payload.ok) {
+    return { ok: false, response: errorResponse(400, "INVALID_REQUEST", requestId) };
+  }
+
+  if (!hasRequestSameOrigin(request)) {
+    return { ok: false, response: errorResponse(403, "INVALID_ORIGIN", requestId) };
+  }
+
+  return { ok: true, preparedRequest: { requestId, startedAt, payload: payload.value } };
+}
+
+function hasRequestSameOrigin(request: Request): boolean {
+  try {
+    return hasSameOrigin(request.headers.get("origin"), new URL(request.url));
+  } catch {
+    return false;
   }
 }
 
@@ -136,7 +186,7 @@ function isJsonRequest(request: Request): boolean {
   return contentType?.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
 }
 
-async function parseJsonBody(request: Request): Promise<{ ok: true; value: unknown } | { ok: false }> {
+async function parseJsonBody(request: Request): Promise<ParsedJsonBody> {
   const declaredLength = request.headers.get("content-length");
   if (declaredLength && (!/^\d+$/u.test(declaredLength) || Number(declaredLength) > MAX_BODY_BYTES)) {
     return { ok: false };

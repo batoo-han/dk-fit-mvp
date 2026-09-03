@@ -29,7 +29,7 @@ export function formatLeadEmail(environment: EmailEnvironment, lead: EmailLead):
       "Данные из заявки:",
       `Имя: ${lead.name}`,
       `Телефон: ${lead.phone}`,
-      `Цель тренировок: ${lead.goal ?? "Не указана"}`,
+      `Цель тренировок: ${lead.goal || "Не указана"}`,
     ].join("\n"),
   };
 }

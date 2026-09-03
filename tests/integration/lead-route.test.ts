@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
+import * as environmentConfig from "../../src/lib/config/env";
+import * as redisClient from "../../src/lib/redis/client";
 import {
   createLeadRouteHandler,
+  POST,
   type LeadRouteDependencies,
 } from "../../src/app/api/leads/route";
 
@@ -126,6 +129,16 @@ describe("POST /api/leads", () => {
     expect(dependencies.sendEmail).not.toHaveBeenCalled();
   });
 
+  it("accepts an omitted optional honeypot field as a legitimate lead", async () => {
+    const { handler, dependencies } = handlerWith();
+    const { website: _website, ...payload } = leadPayload();
+
+    const response = await handler(leadRequest({ body: payload }));
+
+    expect(response.status).toBe(201);
+    expect(dependencies.sendEmail).toHaveBeenCalledOnce();
+  });
+
   it("blocks a too-fast submit without creating an SMTP side effect", async () => {
     const { handler, dependencies } = handlerWith();
     const response = await handler(leadRequest({ body: leadPayload({ startedAt: Date.now() - 1_000 }) }));
@@ -248,5 +261,22 @@ describe("POST /api/leads", () => {
     expect(log).toHaveBeenCalledWith(
       expect.objectContaining({ leadFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u) }),
     );
+  });
+
+  it("runs malformed-content and origin gates before unavailable production dependencies", async () => {
+    const getServerEnv = vi.spyOn(environmentConfig, "getServerEnv").mockImplementation(() => {
+      throw new Error("misconfigured server environment");
+    });
+    const getRedisClient = vi.spyOn(redisClient, "getRedisClient").mockRejectedValue(new Error("Redis unavailable"));
+
+    try {
+      await expectSafeError(await POST(leadRequest({ contentType: "text/plain" })), 400, "INVALID_REQUEST");
+      await expectSafeError(await POST(leadRequest({ body: "{" })), 400, "INVALID_REQUEST");
+      await expectSafeError(await POST(leadRequest({ origin: "https://attacker.test" })), 403, "INVALID_ORIGIN");
+      expect(getServerEnv).not.toHaveBeenCalled();
+      expect(getRedisClient).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
