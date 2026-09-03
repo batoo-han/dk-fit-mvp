@@ -5,11 +5,17 @@
 
 .shell {
   display: grid;
-  grid-template-columns: minmax(0, 3.25fr) minmax(0, 3.75fr) minmax(20rem, 3fr);
+  grid-template-columns: minmax(0, 7fr) minmax(20rem, 5fr);
   margin: 0 auto;
   max-inline-size: var(--container);
   min-block-size: 100svh;
   padding-inline: var(--gutter);
+}
+
+.editorial {
+  display: grid;
+  grid-template-columns: minmax(0, 13fr) minmax(0, 15fr);
+  min-inline-size: 0;
 }
 
 .approach,
@@ -24,7 +30,11 @@
   padding-inline-end: clamp(1.5rem, 3.5vw, 4rem);
 }
 
-.process,
+.process {
+  border-inline-start: 1px solid var(--color-border);
+  padding-inline-start: clamp(1.5rem, 3.5vw, 4rem);
+}
+
 .formSlot {
   border-inline-start: 1px solid var(--color-border);
   padding-inline-start: clamp(1.5rem, 3.5vw, 4rem);
@@ -78,10 +88,6 @@
   max-inline-size: 10ch;
 }
 
-.process .eyebrow {
-  margin-block-end: clamp(2.5rem, 6vw, 5rem);
-}
-
 .formSlot {
   display: flex;
   flex-direction: column;
@@ -99,6 +105,10 @@
 @media (max-width: 1023px) {
   .shell {
     grid-template-columns: minmax(0, 1fr) minmax(20rem, 1fr);
+  }
+
+  .editorial {
+    display: contents;
   }
 
   .approach {
@@ -143,10 +153,6 @@
 
   .approach h2 {
     max-inline-size: 12ch;
-  }
-
-  .process .eyebrow {
-    margin-block-end: 2.5rem;
   }
 
   .formSlot {

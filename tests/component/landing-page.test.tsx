@@ -36,4 +36,13 @@ describe("Home", () => {
       /\b(?:\d+%|\d+\s*(?:лет|клиент(?:ов|а)?|кг))\b/i,
     );
   });
+
+  it("does not publish process or form labels outside the approved content contract", () => {
+    render(<Home />);
+
+    const publicCopy = screen.getByRole("main").textContent;
+
+    expect(publicCopy).not.toContain("Как это работает");
+    expect(publicCopy).not.toContain("Заявка");
+  });
 });

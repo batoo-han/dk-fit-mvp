@@ -3,44 +3,38 @@
 ## Comparison target
 
 - Source visual truth: `docs/design/assets/editorial-strength-selected.png` (1122×1402 px).
-- Implementation: `tests/e2e/visual.spec.ts-snapshots/editorial-strength-desktop-desktop-win32.png` (1440×1915 px, captured 2026-09-02).
-- Desktop viewport/state: `/`, 1440×900 CSS px, browser default zoom, `deviceScaleFactor: 1`, no interaction state, animations disabled.
-- Mobile supporting capture: `tests/e2e/visual.spec.ts-snapshots/editorial-strength-mobile-mobile-win32.png` (390×2514 px) at 390×844 CSS px.
-- Density normalization: the source hero (1122×701 px) and the first 1440×900 px implementation viewport share a 1.60 aspect ratio. Both were downscaled to 720×450 px and placed side-by-side in `tests/e2e/evidence/editorial-strength-hero-comparison.png` before review.
+- Required current implementation capture: `/` at 1440×900 CSS px, browser default zoom, `deviceScaleFactor: 1`, no interaction state, animations disabled.
+- Last desktop snapshot: `tests/e2e/visual.spec.ts-snapshots/editorial-strength-desktop-desktop-win32.png` (1440×1915 px, captured 2026-09-02). It predates the current 7/5 grid and copy-contract fixes and is retained only as historical evidence, not as the accepted baseline for this revision.
 
-## Evidence and interactions
+## Current capture status
 
-- Full-view comparison: selected source hero versus desktop hero, normalized in `tests/e2e/evidence/editorial-strength-hero-comparison.png`.
-- Focused region comparison: hero header, display heading, CTA, portrait crop, and the burgundy `FIT` typography were readable at the normalized hero size; no separate crop was needed.
-- Browser checks: the primary CTA resolves to `#lead-form`; exactly two direct `main > section` elements render; desktop and 390 px tests found no horizontal overflow.
-- Console: the Playwright run completed without reported page-console errors.
+The current implementation could not be browser-rendered in this sandbox. On 2026-09-03, the desktop command
 
-## Findings
+```powershell
+npx --yes node@24 node_modules/@playwright/test/cli.js test tests/e2e/visual.spec.ts --project=desktop
+```
 
-No actionable P0/P1/P2 differences remain within Task 4 scope.
+exited `1` after the configured Next dev `webServer` timed out waiting for `http://127.0.0.1:3210` for 60 seconds. This is the existing local-preview/localhost blocker; no screenshot was produced and no snapshot was updated. The separately reported sandbox localhost 503 condition remains unresolved, so this report does not claim a successful Playwright or visual-comparison run.
 
-- The two-screen hierarchy, dark neutral palette, muted gold dividers, burgundy CTA/decorative type, serif display scale, portrait-led composition, and responsive linear second-screen order match the selected Editorial Strength direction.
-- The source mock contains more navigation labels and a complete form. The approved public content source does not provide navigation labels, and Task 4 is explicitly limited to a safe form slot. Task 5 owns the form controls and submission states; neither item is a Task 4 visual defect.
+## Fixed review findings awaiting visual recapture
+
+- [P1 fixed in code; visual confirmation blocked] The second screen now uses an outer 12-column-equivalent `7fr / 5fr` grid. The left 7-part region nests the approach/process tracks, while the form slot occupies the outer 5-part region.
+- [P1 fixed in code; visual confirmation blocked] The unsupported visible labels `Как это работает` and `Заявка` were removed. All remaining visible public copy is supplied by `landingContent`; the approved form heading remains `Оставьте заявку`.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: serif display text is limited to headings and decorative process numbers; body/CTA text uses the body sans stack. Hierarchy and wrapping are preserved at desktop and 390 px.
-- Spacing and layout rhythm: desktop uses the specified 5/7 hero grid and a three-column second screen; tablet/mobile collapse without fixed viewport height or internal scrolling.
-- Colors and tokens: implementation uses the exact specification tokens for background, text, muted text, burgundy, gold, border, focus, error and success colors.
-- Image quality and asset fidelity: the approved raster portrait and raster brand mark are used directly; no logo, portrait, decorative mark, or icon is replaced with hand-drawn SVG/CSS art.
-- Copy and content: visible public copy comes from `landingContent`; unsupported credentials, results, addresses, testimonials, and numerical claims are absent.
-
-## Follow-up polish
-
-- [P3] Task 5 will fill the intentionally reserved `#lead-form` visual region with the approved labels, accessible controls, and state feedback.
-- [P3] Navigation labels remain absent until approved text and anchor behavior are supplied; no labels were invented to imitate the reference.
+- Fonts and typography: current browser rendering was not available; re-check display/body hierarchy and line wrapping at 1440×900 after the local-preview blocker is fixed.
+- Spacing and layout rhythm: current browser rendering was not available; specifically verify the outer 7/5 split, nested left-column rhythm and form-column width.
+- Colors and tokens: unchanged by this revision, but not re-captured.
+- Image quality and asset fidelity: unchanged by this revision, but not re-captured.
+- Copy and content: component test confirms the two removed unsupported labels are absent; browser verification remains blocked.
 
 ## Implementation checklist
 
-- [x] Exactly two direct landing sections.
-- [x] Header is inside the hero.
-- [x] CTA target and process steps are semantic and keyboard reachable.
-- [x] Reduced-motion and focus-visible styles are present.
-- [x] Desktop and mobile screenshot baselines were captured.
+- [x] Use a genuine outer 7/5 second-screen grid with nested left content.
+- [x] Remove unsupported visible process/form labels rather than inventing replacements.
+- [x] Add a regression test for the unapproved labels.
+- [ ] Recreate the 1440×900 desktop snapshot after the local-preview blocker is resolved.
+- [ ] Compare the current desktop capture and source side-by-side; then update the snapshot and this report with the evidence.
 
-final result: passed
+final result: blocked
