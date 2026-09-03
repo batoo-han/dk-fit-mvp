@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isControlledHttpE2e = process.env.DK_FIT_E2E_ALLOW_INSECURE_HTTP === "true";
+const isDevelopment = process.env.NODE_ENV === "development";
 
 const securityHeaders = [
   {
@@ -11,7 +12,7 @@ const securityHeaders = [
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self'",

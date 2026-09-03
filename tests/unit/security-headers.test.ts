@@ -1,14 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const e2eInsecureHttpKey = "DK_FIT_E2E_ALLOW_INSECURE_HTTP";
-const originalE2eInsecureHttp = process.env[e2eInsecureHttpKey];
 
 afterEach(() => {
-  if (originalE2eInsecureHttp === undefined) {
-    delete process.env[e2eInsecureHttpKey];
-  } else {
-    process.env[e2eInsecureHttpKey] = originalE2eInsecureHttp;
-  }
+  vi.unstubAllEnvs();
   vi.resetModules();
 });
 
@@ -22,14 +17,28 @@ async function contentSecurityPolicy() {
 }
 
 describe("security headers", () => {
+  it("allows React Fast Refresh evaluation only in development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+
+    await expect(contentSecurityPolicy()).resolves.toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+  });
+
+  it("never exposes unsafe-eval in the production policy", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+
+    await expect(contentSecurityPolicy()).resolves.not.toContain("'unsafe-eval'");
+  });
+
   it("retains upgrade-insecure-requests for normal production builds", async () => {
-    delete process.env[e2eInsecureHttpKey];
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(e2eInsecureHttpKey, undefined);
 
     await expect(contentSecurityPolicy()).resolves.toContain("upgrade-insecure-requests");
   });
 
   it("omits only upgrade-insecure-requests for the controlled HTTP E2E fixture", async () => {
-    process.env[e2eInsecureHttpKey] = "true";
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(e2eInsecureHttpKey, "true");
 
     const policy = await contentSecurityPolicy();
     expect(policy).not.toContain("upgrade-insecure-requests");

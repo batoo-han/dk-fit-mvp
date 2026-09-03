@@ -41,6 +41,41 @@ test("keeps the FIT decoration behind the hero portrait", async ({ page }, testI
   expect(stacking.wordZIndex).toBeLessThan(stacking.imageZIndex);
 });
 
+test("keeps the approved portrait expansion at 1440 and removes it on wide desktops", async ({ page }, testInfo) => {
+  expect(testInfo.project.name).toBe("visual-css-pixels");
+
+  const heroPortraitGeometry = async (width: number) => {
+    await page.setViewportSize({ width, height: 1152 });
+    await page.goto("/");
+
+    return page.locator('section[aria-labelledby="hero-title"]').evaluate((hero) => {
+      const portrait = hero.querySelector<HTMLElement>("[class*=portrait]");
+      const image = hero.querySelector<HTMLImageElement>('img[alt="Тренер D&K Fit в спортивной одежде"]');
+
+      if (!portrait || !image) {
+        throw new Error("Hero portrait or image is missing");
+      }
+
+      const portraitBounds = portrait.getBoundingClientRect();
+      const imageBounds = image.getBoundingClientRect();
+      return {
+        imageLeft: imageBounds.left,
+        imageWidth: imageBounds.width,
+        portraitLeft: portraitBounds.left,
+        portraitWidth: portraitBounds.width,
+      };
+    });
+  };
+
+  const desktop = await heroPortraitGeometry(1440);
+  expect(desktop.imageLeft).toBeCloseTo(desktop.portraitLeft - 112, 0);
+  expect(desktop.imageWidth).toBeCloseTo(desktop.portraitWidth + 112, 0);
+
+  const wideDesktop = await heroPortraitGeometry(2048);
+  expect(wideDesktop.imageLeft).toBeCloseTo(wideDesktop.portraitLeft, 0);
+  expect(wideDesktop.imageWidth).toBeCloseTo(wideDesktop.portraitWidth, 0);
+});
+
 test("captures the approved Editorial Strength baselines in CSS-pixel viewports", async ({ page }, testInfo) => {
   expect(testInfo.project.name).toBe("visual-css-pixels");
   expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);

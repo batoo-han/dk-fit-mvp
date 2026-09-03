@@ -107,6 +107,13 @@
   z-index: 2;
 }
 
+@media (min-width: 1600px) {
+  .image {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+}
+
 @media (max-width: 1023px) {
   .grid {
     grid-template-columns: minmax(0, 5fr) minmax(20rem, 6fr);
