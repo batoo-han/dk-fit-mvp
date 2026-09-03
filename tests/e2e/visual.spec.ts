@@ -1,4 +1,20 @@
 import { expect, test } from "@playwright/test";
+import sharp from "sharp";
+
+test("renders an opaque hero portrait without the Next development overlay", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/");
+
+  const screenshot = await page.screenshot({ animations: "disabled" });
+  const { data, info } = await sharp(screenshot).raw().toBuffer({ resolveWithObject: true });
+  const pixelOffset = (400 * info.width + 820) * info.channels;
+  const [red, green, blue] = data.subarray(pixelOffset, pixelOffset + 3);
+
+  // This point sits where the large burgundy FIT used to bleed through the trainer's torso.
+  expect(Math.abs(red - green)).toBeLessThanOrEqual(12);
+  expect(Math.abs(red - blue)).toBeLessThanOrEqual(12);
+  await expect(page.locator("nextjs-portal")).toHaveCount(0);
+});
 
 test("keeps the FIT decoration behind the hero portrait", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
