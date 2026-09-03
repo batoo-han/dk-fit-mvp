@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import {
   createNextCommand,
   createStandaloneRuntimeLayout,
   createStandaloneServerCommand,
+  getNextLocalEnvironmentPaths,
   findAvailableLoopbackPort,
   materializeStandaloneRuntime,
   standaloneRuntimeCopyOptions,
@@ -38,18 +39,71 @@ describe("production E2E harness", () => {
     await expect(access(path.resolve("scripts/run-e2e.mjs"))).resolves.toBeUndefined();
   });
 
-  it("atomically hides a user environment file only for the controlled build and restores it", async () => {
+  it("quarantines every Next-recognized root environment file and restores them in reverse order", async () => {
     const temporaryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-env-"));
-    const environmentPath = path.join(temporaryRoot, ".env");
-    await writeFile(environmentPath, "owner-controlled-value");
+    const projectRoot = path.join(temporaryRoot, "project");
+    const quarantineDirectory = path.join(temporaryRoot, "quarantine");
+    const environmentPaths = getNextLocalEnvironmentPaths({ projectRoot });
+    const restorationTargets: string[] = [];
+    await mkdir(path.join(projectRoot, "nested"), { recursive: true });
+    await Promise.all(environmentPaths.map((environmentPath) => writeFile(environmentPath, "fixture")));
+    await writeFile(path.join(projectRoot, "nested", ".env"), "must-not-be-touched");
 
     try {
-      await withQuarantinedEnvironment({ environmentPath, quarantineDirectory: temporaryRoot }, async () => {
-        await expect(access(environmentPath)).rejects.toThrow();
+      await withQuarantinedEnvironment({
+        environmentPaths,
+        quarantineDirectory,
+        renameFile: async (from, to) => {
+          if (from.startsWith(quarantineDirectory)) {
+            restorationTargets.push(path.basename(to));
+          }
+          await rename(from, to);
+        },
+      }, async () => {
+        await Promise.all(environmentPaths.map((environmentPath) => expect(access(environmentPath)).rejects.toThrow()));
+        await expect(access(path.join(projectRoot, "nested", ".env"))).resolves.toBeUndefined();
       });
-      await expect(access(environmentPath)).resolves.toBeUndefined();
+      await Promise.all(environmentPaths.map((environmentPath) => expect(access(environmentPath)).resolves.toBeUndefined()));
+      expect(restorationTargets).toEqual(environmentPaths.map((environmentPath) => path.basename(environmentPath)).reverse());
     } finally {
       await rm(temporaryRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("moves user environment files to a durable recovery path when restoration fails before temporary cleanup", async () => {
+    const temporaryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-restore-failure-"));
+    const recoveryRoot = await mkdtemp(path.join(process.cwd(), ".e2e-harness-durable-recovery-"));
+    const projectRoot = path.join(temporaryRoot, "project");
+    const quarantineDirectory = path.join(temporaryRoot, "quarantine");
+    const recoveryDirectory = path.join(recoveryRoot, "durable-recovery");
+    const environmentPath = path.join(projectRoot, ".env");
+    await mkdir(projectRoot, { recursive: true });
+    await writeFile(environmentPath, "fixture");
+    let failRestoration = true;
+
+    try {
+      await expect(withQuarantinedEnvironment({
+        environmentPaths: [environmentPath],
+        quarantineDirectory,
+        recoveryDirectory,
+        renameFile: async (from, to) => {
+          if (failRestoration && to === environmentPath) {
+            failRestoration = false;
+            const error = Object.assign(new Error("simulated restore failure"), { code: "EPERM" });
+            throw error;
+          }
+          await rename(from, to);
+        },
+      }, async () => undefined)).rejects.toThrow(/\.env.*durable-recovery/u);
+
+      await cleanupProductionE2eWorkspace({ temporaryRoot });
+      await expect(access(temporaryRoot)).rejects.toThrow();
+      const recoveryRuns = await readdir(recoveryDirectory);
+      expect(recoveryRuns).toHaveLength(1);
+      await expect(access(path.join(recoveryDirectory, recoveryRuns[0], ".env"))).resolves.toBeUndefined();
+    } finally {
+      await rm(temporaryRoot, { force: true, recursive: true });
+      await rm(recoveryRoot, { force: true, recursive: true });
     }
   });
 

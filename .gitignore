@@ -6,3 +6,10 @@ coverage/
 *.tsbuildinfo
 .env
 .env.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.test
+.env.test.local
+.dk-fit-e2e-recovery/

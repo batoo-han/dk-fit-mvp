@@ -26,12 +26,30 @@ SMTP, Telegram, or other external request was made.
   directive remains present.
 - `LeadForm` adds `data-client-ready="true"` only after its client effect has
   run. The E2E helper requires this marker before it fills or submits the form.
-- The harness continues to use Node 24, fixture-only values, atomic filename
-  quarantine/restore of `.env`, an isolated materialized standalone runtime,
-  and owned port/temp cleanup.
+- The harness continues to use Node 24, fixture-only values, an isolated
+  materialized standalone runtime, and owned port/temp cleanup.
+
+## Environment recovery hardening
+
+- Before a controlled build, the harness quarantines only by root filename:
+  `.env`, `.env.local`, `.env.development`, `.env.development.local`,
+  `.env.production`, `.env.production.local`, `.env.test`, and
+  `.env.test.local`. It never reads or logs their contents.
+- Restoration runs in reverse order in `finally` and refuses to overwrite a
+  newly-created root filename.
+- If restoration fails, every still-quarantined file is moved before temporary
+  cleanup to a unique directory below `.dk-fit-e2e-recovery/`; the failure
+  reports only the filename and recovery path. If that move itself fails, the
+  temporary workspace is deliberately retained rather than recursively
+  deleting a directory that may contain a user environment file.
+- The recovery directory is ignored by Git so a recovered local environment
+  file cannot be staged accidentally.
 
 ## Fresh results
 
+- Node 24 harness-recovery units: **12 passed**.
+- Node 24 controlled no-update visual gate: **3 passed**; loopback port
+  `58243` was confirmed closed.
 - Header/harness units: **13 passed**.
 - Full unit suite: **132 passed**.
 - Controlled mobile lead E2E: **7 passed** twice; exact one mocked POST and no

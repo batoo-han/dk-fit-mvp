@@ -1,11 +1,22 @@
 import { spawn } from "node:child_process";
-import { cp, mkdtemp, rename, rm } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import net from "node:net";
+import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const NEXT_BIN = "node_modules/next/dist/bin/next";
+export const NEXT_LOCAL_ENV_FILENAMES = Object.freeze([
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.development.local",
+  ".env.production",
+  ".env.production.local",
+  ".env.test",
+  ".env.test.local",
+]);
 export const standaloneRuntimeCopyOptions = Object.freeze({ dereference: true, recursive: true });
 const FIXTURE_ENVIRONMENT = Object.freeze({
   DK_FIT_E2E_ALLOW_INSECURE_HTTP: "true",
@@ -64,6 +75,11 @@ export function createStandaloneServerCommand({ port, runtimeDirectory }) {
     },
     shell: false,
   };
+}
+
+export function getNextLocalEnvironmentPaths({ projectRoot = process.cwd() } = {}) {
+  const resolvedProjectRoot = path.resolve(projectRoot);
+  return NEXT_LOCAL_ENV_FILENAMES.map((filename) => path.join(resolvedProjectRoot, filename));
 }
 
 export async function findAvailableLoopbackPort() {
@@ -127,11 +143,14 @@ export async function runProductionE2e(playwrightArgs) {
   const runtimeDirectory = path.join(temporaryRoot, "runtime");
   const nextEnvPath = path.resolve("next-env.d.ts");
   const nextEnvBackupPath = path.join(temporaryRoot, "next-env.d.ts");
+  const recoveryDirectory = path.resolve(".dk-fit-e2e-recovery");
 
+  let cleanupTemporaryRoot = true;
   try {
     await withQuarantinedEnvironment({
-      environmentPath: path.resolve(".env"),
+      environmentPaths: getNextLocalEnvironmentPaths(),
       quarantineDirectory: temporaryRoot,
+      recoveryDirectory,
     }, async () => {
       await cp(nextEnvPath, nextEnvBackupPath);
       try {
@@ -169,8 +188,17 @@ export async function runProductionE2e(playwrightArgs) {
       await stopOwnedServer(server);
       await waitForPortToClose({ port });
     }
+  } catch (error) {
+    if (error && typeof error === "object" && error.preserveTemporaryRoot === true) {
+      cleanupTemporaryRoot = false;
+    }
+    throw error;
   } finally {
-    await cleanupProductionE2eWorkspace({ temporaryRoot });
+    if (cleanupTemporaryRoot) {
+      await cleanupProductionE2eWorkspace({ temporaryRoot });
+    } else {
+      console.error(`Controlled E2E temporary workspace retained for environment recovery: ${temporaryRoot}`);
+    }
   }
 
   return { port };
@@ -182,26 +210,98 @@ export async function materializeStandaloneRuntime({ buildDirectory, runtimeDire
   }
 }
 
-export async function withQuarantinedEnvironment({ environmentPath, quarantineDirectory }, run) {
-  const quarantinePath = path.join(quarantineDirectory, ".env.e2e-quarantine");
-  let quarantined = false;
+export async function withQuarantinedEnvironment({
+  environmentPaths,
+  quarantineDirectory,
+  recoveryDirectory = path.resolve(".dk-fit-e2e-recovery"),
+  renameFile = rename,
+}, run) {
+  await mkdir(quarantineDirectory, { recursive: true });
+  const quarantined = [];
 
-  try {
-    await rename(environmentPath, quarantinePath);
-    quarantined = true;
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code !== "ENOENT") {
-      throw error;
+  for (const [index, environmentPath] of environmentPaths.entries()) {
+    const quarantinePath = path.join(quarantineDirectory, `.env.e2e-quarantine-${index}-${path.basename(environmentPath)}`);
+    try {
+      await renameFile(environmentPath, quarantinePath);
+      quarantined.push({ environmentPath, quarantinePath });
+    } catch (error) {
+      if (!hasErrorCode(error, "ENOENT")) {
+        await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError: error });
+      }
     }
   }
 
   try {
     return await run();
   } finally {
-    if (quarantined) {
-      await rename(quarantinePath, environmentPath);
+    await restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile });
+  }
+}
+
+async function restoreQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile }) {
+  for (const entry of [...quarantined].reverse()) {
+    try {
+      if (await pathExists(entry.environmentPath)) {
+        throw new Error(`Refusing to overwrite a new file at ${path.basename(entry.environmentPath)}`);
+      }
+      await renameFile(entry.quarantinePath, entry.environmentPath);
+      quarantined.splice(quarantined.indexOf(entry), 1);
+    } catch (error) {
+      await preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError: error });
     }
   }
+}
+
+async function preserveQuarantinedEnvironment({ quarantined, recoveryDirectory, renameFile, restorationError }) {
+  const remainingEntries = [];
+  for (const entry of quarantined) {
+    if (await pathExists(entry.quarantinePath)) {
+      remainingEntries.push(entry);
+    }
+  }
+
+  if (remainingEntries.length === 0) {
+    throw restorationError;
+  }
+
+  const filenames = remainingEntries.map(({ environmentPath }) => path.basename(environmentPath));
+  const recoveryPath = path.join(recoveryDirectory, `run-${randomUUID()}`);
+
+  try {
+    await mkdir(recoveryPath, { recursive: true });
+    for (const entry of remainingEntries) {
+      await renameFile(entry.quarantinePath, path.join(recoveryPath, path.basename(entry.environmentPath)));
+      quarantined.splice(quarantined.indexOf(entry), 1);
+    }
+  } catch (recoveryError) {
+    const error = new Error(`Controlled E2E could not restore ${filenames.join(", ")}; files remain quarantined at ${quarantined[0] ? path.dirname(quarantined[0].quarantinePath) : "unknown"}. Temporary cleanup was skipped. Restore error code: ${errorCode(restorationError)}; recovery error code: ${errorCode(recoveryError)}`);
+    error.preserveTemporaryRoot = true;
+    throw error;
+  }
+
+  throw new Error(`Controlled E2E could not restore ${filenames.join(", ")}; files were recovered at ${recoveryPath}. Restore error code: ${errorCode(restorationError)}`);
+}
+
+async function pathExists(targetPath) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch (error) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function hasErrorCode(error, expectedCode) {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === expectedCode);
+}
+
+function errorCode(error) {
+  return error && typeof error === "object" && "code" in error && typeof error.code === "string"
+    ? error.code
+    : "UNKNOWN";
 }
 
 export async function cleanupProductionE2eWorkspace({ temporaryRoot }) {
