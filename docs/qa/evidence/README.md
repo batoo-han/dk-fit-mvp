@@ -8,5 +8,7 @@ Evidence is deliberately sanitized:
 - screenshots and test artifacts contain no submitted PII.
 
 The authoritative status and exact reproducible commands are in
-[`../acceptance-matrix.md`](../acceptance-matrix.md). Current result is
-**NO-GO** until the listed P0/P1 findings are fixed and independently rerun.
+[`../acceptance-matrix.md`](../acceptance-matrix.md). The latest independent
+rerun is [`2026-09-03-task-10-rerun.md`](2026-09-03-task-10-rerun.md): the
+former E2E P0/P1 findings have passed, but a fresh aggregate lint P1 leaves the
+current local/staging verdict at **NO-GO**.

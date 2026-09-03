@@ -1,74 +1,63 @@
-# D&K Fit — независимая QA acceptance matrix
+# D&K Fit — independent QA acceptance matrix
 
-**Task:** 10
+**Task:** 10 rerun
 **Date:** 2026-09-03
-**Verdict:** **NO-GO for local/staging and production**
+**Reviewed commit:** `2ee61b9`
+**Verdict:** **NO-GO for local/staging.**
 
-All browser runs use only non-production fixture configuration in the process
-environment. No user `.env` values were read, logged or changed; SMTP and
-Telegram requests were intercepted in the browser tests.
+All browser runs used the controlled Node 24 fixture harness. It quarantines
+only root `.env*` filenames during its owned build, never reads or logs their
+contents, restores them in `finally`, and starts an isolated standalone runtime
+on an owned loopback port. Browser API routes were intercepted; no SMTP, Redis,
+Telegram, webhook, deployment, or user environment value was contacted.
 
-| Gate | Evidence | Result | Owner / action |
+| Gate | Fresh evidence | Result | Owner / action |
 | --- | --- | --- | --- |
-| Valid lead, one request, exact `t.me` redirect | Desktop mocked browser flow: 8/8 passed | PASS | — |
-| 422, 429, 503 and offline retain data and stay on page | Desktop mocked browser flow: 8/8 passed | PASS | — |
-| Double click / Back / keyboard-only | Desktop mocked browser flow: 8/8 passed | PASS | — |
-| Mobile lead form | iPhone 13 profile navigates natively to `/?name=...&phone=...` instead of executing the intercepted `POST /api/leads` | **P0 BLOCKER** | Task 5 owner: make the hydrated form prevent native submission on mobile, then rerun all mobile flow cases. |
-| Two sections, visible CTA/form, focus visibility, no horizontal overflow | CSS-pixel matrix (320x568, 390x844, 768x1024, 1440x900) passed in Desktop Chrome profile | PASS | — |
-| axe critical/serious | Landing axe gate passed in desktop and iPhone profiles | PASS | — |
-| Desktop selected baseline | Approved 1440x900 baseline passed | PASS | — |
-| Mobile selected baseline | Approved 390x844 CSS-pixel baseline has 2.315% visibly different pixels | **P1 BLOCKER** | Task 4 owner: inspect current 390 CSS-pixel render against the selected reference, resolve or explicitly approve a renderer-specific residual. |
-| Manual keyboard / 200% zoom / reduced motion / screen reader | Not claimable while the mobile form gate is broken. Repeat after the P0 fix; document a real screen-reader path. | BLOCKED | QA witness after Task 5 fix |
-| Node 24 local verification | `npm.cmd run verify` ran under Node 24: lint/typecheck passed, then Vitest collected all Playwright `tests/e2e/*.spec.ts` and failed with four `Playwright Test did not expect test()` suite errors. | **P1 BLOCKER** | Foundation/tooling owner: exclude `tests/e2e/` from Vitest collection; rerun full verify after P0/P1 fixes. |
-| Docker image build / healthcheck | Docker daemon is unavailable (`//./pipe/docker_engine` missing), so `docker compose build` exits 1. `docker compose config --no-interpolate` exits 0. | BLOCKED | Platform / QA |
-| Staging SMTP / Telegram webhook | Not run: requires owner inputs, HTTPS staging endpoint and explicit authority for external effects. | NOT AUTHORIZED | Task 11 |
+| Hydration and iPhone submission | The mobile profile waits for `data-client-ready`; all seven mobile lead cases passed. The success case asserts exactly one mocked `POST /api/leads` and zero native local GET navigations. | PASS | — |
+| Valid lead / exact redirect | Desktop and mobile success cases passed. The only redirect target was the fixture URL `https://t.me/test_bot?start=registered`. | PASS | — |
+| 422, 429, 503 and offline | Each browser error flow stayed on the form and retained entered data. | PASS | — |
+| Double click, Back and keyboard flow | One pending double-click generated one mocked request; Back did not resubmit; desktop keyboard-only submit passed. | PASS | Mobile keyboard test is deliberately skipped because the desktop tab-order gate owns that check. |
+| Two sections, visible CTA/form, focus and overflow | CSS-pixel matrix at 320x568, 390x844, 768x1024 and 1440x900 passed; focused name field was not clipped and `scrollWidth <= innerWidth`. | PASS | — |
+| axe critical/serious | Public landing axe gate passed in both desktop and iPhone projects. | PASS | — |
+| DPR 1 visual baseline | All three CSS-pixel visual tests passed, including 1440x900 and the accepted 390x844 baseline and the opaque hero/no-dev-overlay checks. | PASS | — |
+| Full Vitest roots | `tests/unit`, `tests/component` and `tests/integration` collected cleanly: 17 files, 134 tests passed. Playwright specs are no longer collected by Vitest. | PASS | — |
+| Full controlled browser E2E | Desktop, iPhone and CSS-pixel visual projects: 21 passed, 2 intentional skips. The owned loopback port was confirmed closed. | PASS | — |
+| Full lint gate | `eslint .` exits 1 because `scripts/e2e-harness.d.mts:7` is parsed as JavaScript and reports `Missing initializer in const declaration`. `npm run verify` therefore cannot pass. | **P1 BLOCKER** | Foundation/tooling owner: configure ESLint TypeScript parsing for `.mts` declaration files or exclude that declaration file, then independently rerun lint and QA. |
+| Typecheck and assets | `tsc --noEmit` and `scripts/verify-assets.mjs` both exited 0; asset verifier reported four reviewed assets. | PASS | — |
+| 200% zoom, reduced motion, screen-reader path | Not independently executed in this controlled rerun. Existing automated keyboard, focus-visible and axe checks do not substitute for this manual release checklist. | OPEN | Complete in staging/release QA before any production verdict. |
+| Docker image build | Not run: the local Docker daemon is unavailable (`//./pipe/docker_engine` missing). `docker version` confirms the client but cannot connect to a server. | BLOCKED | Platform / QA on a host with Docker daemon. |
+| Staging SMTP / Telegram webhook | Not run: external effects and an HTTPS staging endpoint are outside this Task 10 fixture-only QA scope. | NOT AUTHORIZED | Task 11 with owner inputs and explicit authority. |
 
 ## Reproduction
 
-Use Node `v24.16.0` and complete non-production fixture values in the invoking
-process. Do not load or print a user production environment.
+Run from `dk-fit` with Node `v24.16.0`; do not load, print, or source a user
+environment file:
 
 ```powershell
-$env:DK_FIT_E2E_BASE_URL = 'http://127.0.0.1:3222'
-J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\@playwright\test\cli.js test tests/e2e/lead-form.spec.ts --project=desktop --reporter=line
+J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\vitest\vitest.mjs run
+J:\AI\node-v24.16.0-win-x64\node.exe .\scripts\run-e2e.mjs --reporter=line
+J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\eslint\bin\eslint.js .
+J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\typescript\bin\tsc --noEmit
+J:\AI\node-v24.16.0-win-x64\node.exe .\scripts\verify-assets.mjs
 ```
 
-The desktop run must report `8 passed`. The equivalent `--project=mobile` run
-currently reproduces the P0 native-form navigation. The CSS-pixel visual gate
-uses the Desktop Chrome profile and manually sets the required 1440x900 and
-390x844 viewports so the 72-DPI reference files are not compared to an
-iPhone device-pixel screenshot.
+`npm run verify` was intentionally not invoked: its raw `npm run build` stage
+does not use the controlled quarantine harness and could load a root `.env`.
+The isolated E2E harness did execute its own fixture-only production build;
+that build and all browser checks passed. The independent direct lint run still
+proves the aggregate script currently fails, without accessing a user env file.
 
-## Findings needing re-review
+## Blocking finding
 
-1. **P0 — mobile form native navigation.** The navigation includes entered
-   fields in the URL, violating the no-client-storage/no-unsafe-submit flow and
-   preventing the required success/error behavior. This blocks staging and
-   production.
-2. **P1 — mobile visual drift.** The 390 CSS-pixel baseline has a visible
-   mismatch ratio of `0.023152061613600075` against
-`editorial-strength-mobile-mobile-win32.png`; the allowed QA threshold is
-`0.003`. This blocks the visual gate until a visual owner investigates it.
-3. **P1 — aggregate verify is not runnable.** `vitest.config.mts` includes
-   `tests/**/*.{test,spec}.{ts,tsx}`, so it imports Playwright E2E specs during
-   `npm test`. This makes `npm run verify` stop before its build/assets/E2E
-   stages. Exclude the E2E folder from the Vitest glob and re-run the whole
-   script after the functional fixes.
-4. **Configuration note.** The production runtime rejects `SMTP_SECURE=false`;
-   the QA fixture used `SMTP_PORT=465` and `SMTP_SECURE=true`. Confirm the final
-   SMTP provider settings before release, especially if using port 587.
+1. **P1 — aggregate lint is failing.** `scripts/e2e-harness.d.mts` is a
+   TypeScript declaration file but the current ESLint configuration parses it as
+   JavaScript. This is a tooling defect, not evidence of a landing interaction
+   regression, but it blocks the required all-green local verification gate.
 
-## Commands and observed results
-
-- `J:\AI\node-v24.16.0-win-x64\node.exe .\scripts\run-e2e.mjs tests/e2e/lead-form.spec.ts --project=desktop --reporter=line`
-  — exit `0`, `Playwright: 8 passed`, loopback port `61654` closed.
-- The same Node 24 harness command with `--project=mobile` — exit `1` after
-  `70.5s`; the directly reported Playwright reproduction shows native
-  `/?name=...` navigation for all seven form cases (one keyboard case skipped).
-- `J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\eslint\bin\eslint.js tests/e2e/landing.spec.ts tests/e2e/lead-form.spec.ts tests/e2e/accessibility.spec.ts tests/e2e/visual.spec.ts`
-  — exit `0`.
-- `npm.cmd run verify` with Node 24 first on `PATH` and fixture-only env — exit
-  `1`: lint/typecheck passed; `npm test` had `124 passed` unit/component tests
-  but failed on four Playwright suite collection errors.
-- `docker compose build` — exit `1` because the Docker daemon is unavailable.
-  `docker compose config --no-interpolate` — exit `0` with output suppressed.
+The former mobile native-submit, stale 390px visual, and Vitest/Playwright
+collection blockers were independently retested and are no longer present on
+the reviewed commit. See
+[`e2e-hydration-readiness.md`](evidence/2026-09-03-e2e-hydration-readiness.md)
+for the earlier root-cause and remediation evidence, and
+[`2026-09-03-task-10-rerun.md`](evidence/2026-09-03-task-10-rerun.md) for this
+fresh run.
