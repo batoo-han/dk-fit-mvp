@@ -7,5 +7,6 @@ describe("ESLint configuration", () => {
     const eslint = new ESLint({ cwd: process.cwd() });
 
     await expect(eslint.isPathIgnored(path.resolve("scripts/e2e-harness.d.mts"))).resolves.toBe(true);
+    await expect(eslint.isPathIgnored(path.resolve("src/content/landing.ru.ts"))).resolves.toBe(false);
   }, 15_000);
 });
