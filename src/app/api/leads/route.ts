@@ -19,7 +19,7 @@ const MAX_BODY_BYTES = 8 * 1024;
 const MIN_SUBMIT_DELAY_MS = 2_000;
 const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
-type RouteEnvironment = Pick<ServerEnv, "publicSiteUrl" | "siteAuthorFullName"> & {
+type RouteEnvironment = Pick<ServerEnv, "publicSiteUrl" | "siteAuthorFullName" | "leadRecipientEmail"> & {
   telegram: Pick<ServerEnv["telegram"], "username">;
 };
 
@@ -36,7 +36,7 @@ export type LeadRouteDependencies = {
   idempotency: LeadIdempotency;
   rateLimiter: LeadRateLimiter;
   piiHashSecret: string;
-  sendEmail(message: { to: "superhumansmm@yandex.ru"; subject: "D&K Fit — новая заявка"; text: string }): Promise<void>;
+  sendEmail(message: { to: string; subject: "D&K Fit — новая заявка"; text: string }): Promise<void>;
   log(event: { requestId: string; status: number; durationMs: number; leadFingerprint?: string }): void;
   now(): number;
 };

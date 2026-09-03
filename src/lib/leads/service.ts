@@ -10,6 +10,7 @@ import "server-only";
 type LeadServiceEnvironment = {
   publicSiteUrl: URL;
   siteAuthorFullName: string;
+  leadRecipientEmail: string;
   telegram: { username: string };
 };
 

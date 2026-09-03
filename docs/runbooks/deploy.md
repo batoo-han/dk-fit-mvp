@@ -14,10 +14,10 @@ production action.
 1. Use Node 24 (`node --version` must report a v24 release) with an explicit
    `NODE_ENV=production`. The release-only smoke rejects a missing or non-production
    value before it constructs an SMTP transport.
-2. Obtain the owner-provided production URL/hosting, author full name, one SMTP
-   account, Telegram bot credentials, legal operator details, and asset-rights
-   confirmation. Do not place any value in a command, terminal capture, or
-   ticket.
+2. Obtain the owner-provided author full name, one SMTP account, one lead
+   recipient address, Telegram bot credentials, legal operator details, and
+   asset-rights confirmation. Do not place any secret value in a command,
+   terminal capture, or ticket.
 3. In the target deployment environment, run `npm run check:env`.
    The standalone script has no source-TypeScript imports and is the same
    artifact executed by the container entrypoint before `server.js`. It prints
@@ -39,6 +39,36 @@ docker compose --env-file .env.example config --no-interpolate --quiet
 An exit `0` validates the Compose model only. It does not build the image,
 contact a Docker daemon, execute the runner preflight, or validate production
 environment values.
+
+## Transfer to the server: server-only configuration
+
+Perform these steps only after release-owner authority. They configure the
+server but do not send email, bind a Telegram webhook, or publish the service.
+
+1. Keep the repository checkout and image free of `.env` files. On the target
+   host, create an owner-controlled file outside the checkout, for example
+   `/etc/dk-fit/dk-fit.env`, with permissions restricted to the runtime owner
+   (for a root-owned file: `sudo install -m 600 -o root -g root /dev/null
+   /etc/dk-fit/dk-fit.env`, then `sudoedit /etc/dk-fit/dk-fit.env`). Do not
+   copy, commit, paste into tickets, or capture the file in terminal output.
+2. In that server-only file, set `PUBLIC_SITE_URL=https://dnk.batoohan.ru` and
+   set one owner-approved address as `LEAD_RECIPIENT_EMAIL`. Do not use a
+   `NEXT_PUBLIC_` name and do not place the recipient in client code or a
+   reverse-proxy config.
+3. Set the remaining owner-provided SMTP values. For a STARTTLS provider use
+   `SMTP_SECURE=false` and its STARTTLS port; do not set an implicit-TLS port
+   with that mode. The application keeps `requireTLS=true` and
+   `rejectUnauthorized=true`, so a plaintext-only server or invalid certificate
+   is a hard failure. For implicit TLS, set `SMTP_SECURE=true` (normally port
+   465). Never add `NODE_TLS_REJECT_UNAUTHORIZED=0`.
+4. Set `DK_FIT_ENV_FILE=/etc/dk-fit/dk-fit.env` only in the deployment shell or
+   protected service manager configuration, then use the existing Compose file.
+   Compose injects that file into the app while overriding `NODE_ENV=production`
+   and the internal Redis URL. Do not change `compose.yaml` to embed secrets.
+5. Before any container start, run the sanitized `npm run check:env` and
+   `npm run smoke:smtp -- --preflight` as the same runtime user. They may print
+   invalid key names only; any output or non-zero exit is a NO-GO. Do not repair
+   a failed preflight by substituting fixture values.
 
 ## Trusted reverse-proxy boundary
 
@@ -67,8 +97,8 @@ Set `SMTP_SECURE=true` for implicit TLS (normally port 465). Set
 mailer and this smoke tool require the TLS upgrade and fail closed if the server
 would use plaintext SMTP. Certificate validation is explicitly enabled in both
 modes; do not set `NODE_TLS_REJECT_UNAUTHORIZED=0` or add a certificate-bypass
-option. This setting never changes the public lead recipient
-`superhumansmm@yandex.ru`.
+option. The public lead recipient remains the required server-only
+`LEAD_RECIPIENT_EMAIL` value.
 
 The smoke tool is intentionally separate from `/api/leads`; it never changes
 the public lead recipient or posts a lead. It will not send until both CLI

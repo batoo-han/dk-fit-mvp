@@ -14,8 +14,8 @@ safety, trusted-proxy rate-limit identity, and the directly related goal-tab
 and documentation corrections.
 
 No root dotenv value was read or printed. No SMTP/Telegram provider, webhook,
-deployment, raw build, or Docker daemon was invoked. The public lead recipient
-and the release-only SMTP smoke contract were not changed.
+deployment, raw build, or Docker daemon was invoked. The public lead-recipient
+configuration and the release-only SMTP smoke contract were not changed.
 
 ## TDD evidence
 

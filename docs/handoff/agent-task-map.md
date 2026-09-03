@@ -38,7 +38,7 @@ If an agent needs a file owned by another concurrent task, it must stop that edi
 
 - Brand: `D&K Fit`.
 - Visual: Editorial Strength.
-- Notification recipient: `superhumansmm@yandex.ru`.
+- Notification recipient: required server-only `LEAD_RECIPIENT_EMAIL`.
 - Bot behavior: exact thanks on Start, then silence.
 - Lead fields: name, phone, optional goal, consent.
 - Active SMTP provider is configurable; no fallback.
@@ -49,7 +49,7 @@ If an agent needs a file owned by another concurrent task, it must stop that edi
 |---|---|---|
 | production URL and hosting | env, canonical, webhook | Task 11 |
 | full author name | email body | real SMTP smoke/release |
-| SMTP host/port/TLS/user/password/from | mailer | real lead flow |
+| SMTP host/port/TLS/user/password/from and `LEAD_RECIPIENT_EMAIL` | mailer | real lead flow |
 | Telegram bot token and username | webhook/deep link | real Telegram smoke |
 | legal operator name/contact | privacy page | public release |
 | final trainer name/biography, if public | content | content approval only |

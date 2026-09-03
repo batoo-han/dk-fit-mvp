@@ -14,14 +14,14 @@ const smtp = {
 };
 
 const message = {
-  to: "superhumansmm@yandex.ru" as const,
+  to: "lead-recipient@example.test" as const,
   subject: "D&K Fit — новая заявка" as const,
   text: "Тестовое письмо",
 };
 
 describe("lead mailer", () => {
-  it("accepts SMTP success only when the fixed recipient is in accepted", async () => {
-    const sendMail = vi.fn().mockResolvedValue({ accepted: ["superhumansmm@yandex.ru"] });
+  it("accepts SMTP success only when the configured recipient is in accepted", async () => {
+    const sendMail = vi.fn().mockResolvedValue({ accepted: ["lead-recipient@example.test"] });
     const createTransport = vi.fn().mockReturnValue({ sendMail });
     const mailer = createLeadMailer({ smtp }, createTransport);
 
@@ -39,7 +39,7 @@ describe("lead mailer", () => {
     expect(sendMail).toHaveBeenCalledWith({ from: smtp.from, ...message });
   });
 
-  it("does not claim success when SMTP omits the fixed recipient", async () => {
+  it("does not claim success when SMTP omits the configured recipient", async () => {
     const mailer = createLeadMailer(
       { smtp },
       vi.fn().mockReturnValue({ sendMail: vi.fn().mockResolvedValue({ accepted: ["other@example.test"] }) }),

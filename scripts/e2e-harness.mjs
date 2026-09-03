@@ -30,6 +30,7 @@ const FIXTURE_ENVIRONMENT = Object.freeze({
   SMTP_CONNECTION_TIMEOUT_MS: "5000",
   SMTP_FROM: "D&K Fit <no-reply@dk-fit.test>",
   SMTP_HOST: "smtp.dk-fit.test",
+  LEAD_RECIPIENT_EMAIL: "lead-recipient@example.test",
   SMTP_PASSWORD: "fixture-smtp-password",
   SMTP_PORT: "465",
   SMTP_SECURE: "true",

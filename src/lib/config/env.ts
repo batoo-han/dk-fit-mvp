@@ -5,6 +5,12 @@ import "server-only";
 const MIN_SECRET_LENGTH = 32;
 
 const requiredText = z.string().trim().min(1);
+const safeEmail = z
+  .string()
+  .min(3)
+  .max(254)
+  .refine((value) => value === value.trim(), "Email cannot include surrounding whitespace")
+  .pipe(z.email());
 const serverSecret = z
   .string()
   .min(MIN_SECRET_LENGTH)
@@ -26,6 +32,7 @@ const rawEnvironmentSchema = z
     SMTP_USER: requiredText,
     SMTP_PASSWORD: requiredText,
     SMTP_FROM: requiredText,
+    LEAD_RECIPIENT_EMAIL: safeEmail,
     SMTP_CONNECTION_TIMEOUT_MS: positiveIntegerText,
     SMTP_SOCKET_TIMEOUT_MS: positiveIntegerText,
     TELEGRAM_BOT_TOKEN: requiredText,
@@ -47,6 +54,7 @@ type ParsedEnvironment = z.output<typeof rawEnvironmentSchema>;
 export type ServerEnv = {
   publicSiteUrl: URL;
   siteAuthorFullName: string;
+  leadRecipientEmail: string;
   smtp: {
     host: string;
     port: number;
@@ -118,6 +126,7 @@ export function getServerEnv(source: Record<string, string | undefined> = proces
   return {
     publicSiteUrl: parsePublicSiteUrl(environment),
     siteAuthorFullName: environment.SITE_AUTHOR_FULL_NAME,
+    leadRecipientEmail: environment.LEAD_RECIPIENT_EMAIL,
     smtp: {
       host: environment.SMTP_HOST,
       port: environment.SMTP_PORT,

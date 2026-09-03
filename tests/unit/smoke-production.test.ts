@@ -16,6 +16,7 @@ const completeEnvironment = {
   SMTP_USER: "fixture-user",
   SMTP_PASSWORD: "fixture-password",
   SMTP_FROM: "D&K Fit <no-reply@dk-fit.test>",
+  LEAD_RECIPIENT_EMAIL: "lead-recipient@example.test",
   SMTP_CONNECTION_TIMEOUT_MS: "10000",
   SMTP_SOCKET_TIMEOUT_MS: "15000",
   TELEGRAM_BOT_TOKEN: "fixture-bot-token",

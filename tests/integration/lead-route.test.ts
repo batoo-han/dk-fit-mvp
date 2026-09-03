@@ -53,6 +53,7 @@ function handlerWith(overrides: Partial<LeadRouteDependencies> = {}) {
     env: {
       publicSiteUrl: new URL("https://dk-fit.test"),
       siteAuthorFullName: "Тестовый Автор",
+      leadRecipientEmail: "lead-recipient@example.test",
       telegram: { username: "test_bot" },
     },
     idempotency: {
@@ -234,7 +235,7 @@ describe("POST /api/leads", () => {
       telegramDeepLink: "https://t.me/test_bot?start=registered",
     });
     expect(dependencies.sendEmail).toHaveBeenCalledWith({
-      to: "superhumansmm@yandex.ru",
+      to: "lead-recipient@example.test",
       subject: "D&K Fit — новая заявка",
       text: expect.stringContaining("Анна Иванова"),
     });

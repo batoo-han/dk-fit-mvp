@@ -34,6 +34,6 @@ build and runner preflight on Node 24, verified trusted-proxy behavior,
 authorized SMTP/Telegram smokes, deployment checks, manual accessibility and
 privacy/log review, plus a broad code review.
 
-The public `/api/leads` recipient remains exactly
-`superhumansmm@yandex.ru`. This release-only smoke utility does not modify that
-handler.
+The public `/api/leads` recipient is the required server-only
+`LEAD_RECIPIENT_EMAIL` value. This release-only smoke utility does not modify
+that handler.

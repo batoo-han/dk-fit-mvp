@@ -2,11 +2,10 @@ import type { LeadSubmitRequest } from "../contracts/lead";
 
 import "server-only";
 
-export const LEAD_RECIPIENT = "superhumansmm@yandex.ru";
 export const LEAD_EMAIL_SUBJECT = "D&K Fit — новая заявка";
 
 export type LeadEmailMessage = {
-  to: typeof LEAD_RECIPIENT;
+  to: string;
   subject: typeof LEAD_EMAIL_SUBJECT;
   text: string;
 };
@@ -14,13 +13,14 @@ export type LeadEmailMessage = {
 type EmailEnvironment = {
   publicSiteUrl: URL;
   siteAuthorFullName: string;
+  leadRecipientEmail: string;
 };
 
 type EmailLead = Pick<LeadSubmitRequest, "name" | "phone" | "goal">;
 
 export function formatLeadEmail(environment: EmailEnvironment, lead: EmailLead): LeadEmailMessage {
   return {
-    to: LEAD_RECIPIENT,
+    to: environment.leadRecipientEmail,
     subject: LEAD_EMAIL_SUBJECT,
     text: [
       `Новая заявка с сайта ${environment.publicSiteUrl.toString().replace(/\/$/u, "")}`,

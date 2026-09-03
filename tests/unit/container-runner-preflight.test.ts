@@ -15,6 +15,7 @@ const completeEnvironment: NodeJS.ProcessEnv = {
   SMTP_USER: "fixture-user",
   SMTP_PASSWORD: "fixture-password",
   SMTP_FROM: "D&K Fit <no-reply@dk-fit.test>",
+  LEAD_RECIPIENT_EMAIL: "lead-recipient@example.test",
   SMTP_CONNECTION_TIMEOUT_MS: "10000",
   SMTP_SOCKET_TIMEOUT_MS: "15000",
   TELEGRAM_BOT_TOKEN: "fixture-bot-token",
@@ -65,6 +66,19 @@ describe("container runner preflight", () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr.trim()).toBe("SMTP_SOCKET_TIMEOUT_MS");
+    expect(result.stderr).not.toContain(unsafeValue);
+  });
+
+  it("rejects an unsafe lead recipient by key name without echoing its value", async () => {
+    const unsafeValue = "lead-recipient@example.test, attacker@example.test";
+    const result = await runCopiedPreflight({
+      ...completeEnvironment,
+      LEAD_RECIPIENT_EMAIL: unsafeValue,
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr.trim()).toBe("LEAD_RECIPIENT_EMAIL");
     expect(result.stderr).not.toContain(unsafeValue);
   });
 });

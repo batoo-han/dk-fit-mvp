@@ -12,6 +12,7 @@ const validEnvironment = {
   SMTP_USER: "fixture-user",
   SMTP_PASSWORD: "fixture-password",
   SMTP_FROM: "D&K Fit <no-reply@dk-fit.test>",
+  LEAD_RECIPIENT_EMAIL: "lead-recipient@example.test",
   SMTP_CONNECTION_TIMEOUT_MS: "10000",
   SMTP_SOCKET_TIMEOUT_MS: "15000",
   TELEGRAM_BOT_TOKEN: "fixture-bot-token",
@@ -33,11 +34,22 @@ describe("getServerEnv", () => {
 
     expect(env.publicSiteUrl.href).toBe("https://dk-fit.test/");
     expect(env.smtp).toMatchObject({ port: 465, secure: true });
+    expect(env.leadRecipientEmail).toBe("lead-recipient@example.test");
     expect(env.telegram.username).toBe("dk_fit_test_bot");
   });
 
   it("fails with the missing required key name", () => {
     expect(() => getServerEnv(environment({ SMTP_HOST: undefined }))).toThrow("SMTP_HOST");
+  });
+
+  it.each([
+    undefined,
+    "lead recipient@example.test",
+    "lead-recipient@example.test, other@example.test",
+    "Lead recipient <lead-recipient@example.test>",
+    "lead-recipient@example.test\r\nBcc: attacker@example.test",
+  ])("rejects an unsafe LEAD_RECIPIENT_EMAIL", (LEAD_RECIPIENT_EMAIL) => {
+    expect(() => getServerEnv(environment({ LEAD_RECIPIENT_EMAIL }))).toThrow("LEAD_RECIPIENT_EMAIL");
   });
 
   it("rejects a non-HTTPS public URL in production", () => {

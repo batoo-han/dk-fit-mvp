@@ -24,7 +24,7 @@ Docker daemon и отдельно разрешённых SMTP/Telegram/deploy sm
 
 ## Границы MVP
 
-В MVP входят лендинг из двух смысловых экранов, адаптивный дизайн, форма заявки, SMTP-уведомление на `superhumansmm@yandex.ru`, переход в Telegram и бот, отвечающий благодарностью только на `/start`.
+В MVP входят лендинг из двух смысловых экранов, адаптивный дизайн, форма заявки, SMTP-уведомление на server-only адрес из `LEAD_RECIPIENT_EMAIL`, переход в Telegram и бот, отвечающий благодарностью только на `/start`.
 
 В MVP не входят CRM, личный кабинет, база лидов, платежи, аналитика поведения, рассылки, календарь, автоматический ответ на произвольные сообщения и автоматический fallback между SMTP-провайдерами.
 
@@ -51,9 +51,9 @@ reverse proxy на том же хосте. Proxy обязан **перезапи
 port 465). `SMTP_SECURE=false` selects STARTTLS instead: both lead delivery and
 the explicit smoke tool set Nodemailer's `requireTLS=true`, so a server that
 does not upgrade to TLS is rejected rather than used over plaintext. Certificate
-validation remains enabled (`rejectUnauthorized=true`) in both modes. The public
-lead recipient remains `superhumansmm@yandex.ru`; SMTP configuration does not
-change it.
+validation remains enabled (`rejectUnauthorized=true`) in both modes. The
+public lead recipient is the required server-only `LEAD_RECIPIENT_EMAIL` value;
+it is never a `NEXT_PUBLIC_` variable or client-side value.
 
 ## Локальные проверки
 

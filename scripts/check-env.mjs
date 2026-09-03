@@ -5,6 +5,7 @@ const REQUIRED_TEXT_KEYS = [
   "SMTP_USER",
   "SMTP_PASSWORD",
   "SMTP_FROM",
+  "LEAD_RECIPIENT_EMAIL",
   "TELEGRAM_BOT_TOKEN",
   "LEGAL_OPERATOR_NAME",
   "LEGAL_OPERATOR_CONTACT",
@@ -65,6 +66,9 @@ export function invalidEnvironmentKeys(environment = process.env) {
   if (!isUrlWithProtocols(environment.REDIS_URL, ["redis:", "rediss:"])) {
     invalid.add("REDIS_URL");
   }
+  if (!isSafeEmail(environment.LEAD_RECIPIENT_EMAIL)) {
+    invalid.add("LEAD_RECIPIENT_EMAIL");
+  }
 
   return [...invalid].sort();
 }
@@ -102,6 +106,15 @@ function isUrlWithProtocols(value, protocols) {
   } catch {
     return false;
   }
+}
+
+function isSafeEmail(value) {
+  return (
+    typeof value === "string" &&
+    value === value.trim() &&
+    value.length <= 254 &&
+    /^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/u.test(value)
+  );
 }
 
 if (process.argv[1] && import.meta.filename === process.argv[1]) {
