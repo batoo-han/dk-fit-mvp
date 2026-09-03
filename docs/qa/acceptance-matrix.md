@@ -5,10 +5,11 @@
 **Reviewed commit:** `2ee61b9`
 **Verdict:** **NO-GO for local/staging.**
 
-All browser runs used the controlled Node 24 fixture harness. It quarantines
-only root `.env*` filenames during its owned build, never reads or logs their
-contents, restores them in `finally`, and starts an isolated standalone runtime
-on an owned loopback port. Browser API routes were intercepted; no SMTP, Redis,
+All browser runs used the controlled Node 24 fixture harness. During its owned
+build, it quarantines only the eight explicitly named Next-recognized root
+dotenv files (not arbitrary `.env*` files), never reads or logs their contents,
+restores them in `finally`, and starts an isolated standalone runtime on an
+owned loopback port. Browser API routes were intercepted; no SMTP, Redis,
 Telegram, webhook, deployment, or user environment value was contacted.
 
 | Gate | Fresh evidence | Result | Owner / action |
