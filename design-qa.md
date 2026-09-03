@@ -13,7 +13,7 @@ The previous computed `z-index` assertion did not describe the rendered result: 
 
 `HeroSection.module.css` now uses the normal opaque image compositing path. The new Playwright regression renders the page, reads that overlap pixel from a real screenshot via Sharp, and requires a grayscale delta no larger than 12. It also requires that `nextjs-portal` is absent.
 
-The former `1 Issue` capture was produced by the Next development runtime. `playwright.config.ts` now builds first and starts the production Next server on the isolated port 3212 for visual runs; it no longer uses `next dev` as the capture server. A direct Node 24 production-render verification confirmed the desktop baseline is pixel-identical at 1440×2013 and has no portal. Both fresh baseline images were separately opened and inspected.
+The former `1 Issue` capture was produced by the Next development runtime. `playwright.config.ts` now accepts an external base URL and has no Playwright-owned `webServer`. The Node 24 production E2E harness rebuilds immediately before each run, starts Next directly on a newly reserved loopback port, waits for HTTP readiness and verifies that the port closes during bounded cleanup. It no longer uses `next dev` as the capture server. A direct Node 24 production-render verification confirmed the desktop baseline is pixel-identical at 1440×2013 and has no portal. Both fresh baseline images were separately opened and inspected.
 
 ## Current form status
 
@@ -25,19 +25,21 @@ No P0/P1/P2 mismatch remains in the Task 4 Hero scope. The portrait is the centr
 
 ## Verification record
 
-With Node 24.16.0:
+With `J:\AI\node-v24.16.0-win-x64\node.exe`:
 
 ```powershell
-node .\node_modules\next\dist\bin\next build
-node .\node_modules\@playwright\test\cli.js test tests/e2e/visual.spec.ts --reporter=line --timeout=30000 --update-snapshots
+node .\scripts\run-e2e.mjs tests/e2e/visual.spec.ts --reporter=line
+node .\scripts\run-e2e.mjs tests/e2e/visual.spec.ts --reporter=line
+node .\scripts\run-e2e.mjs tests/e2e/landing.spec.ts --reporter=line
 ```
 
-The production build exited 0. The snapshot run executed all six desktop/mobile test bodies and rewrote both reviewed baselines; in this Windows runner its Playwright process did not exit before the 120-second command timeout during server teardown. It must be re-run to an exit-0 no-update result by the release/QA owner before a global delivery claim. This is a verification-runtime limitation, not a visual P1, so this corrective record remains blocked rather than claiming a full visual gate pass.
+Every command performs a fresh production build and starts an externally owned Next server. The first and second no-update visual runs both exited `0` with `Playwright: 6 passed`; their temporary loopback ports (`58107`, `53997`) were confirmed closed by the harness after cleanup. The no-update landing run exited `0` with `Playwright: 2 passed` and closed its temporary port (`52158`). A combined landing-plus-visual run was also executed twice: both exited `0` with `Playwright: 8 passed` and confirmed ports `55165` and `58484` closed. No snapshot update flag was used for these gates.
 
 ## Scope ruling
 
 - [x] The Hero bleed and dev-overlay findings are corrected and covered by a rendered-output regression.
 - [x] Current screenshot dimensions, density and form presence are recorded from the fresh baselines.
-- [ ] Independent release QA: obtain an exit-0 no-update Playwright run, plus the Task 10 accessibility and complete flow gates.
+- [x] Scoped Task 4 visual QA: obtain two exit-0 no-update visual runs from a fresh production renderer.
+- [ ] Independent release QA: Task 10 accessibility and complete flow gates remain required before a global delivery claim.
 
-final result: blocked
+final result: passed
