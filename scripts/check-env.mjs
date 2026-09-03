@@ -113,7 +113,8 @@ function isSafeEmail(value) {
     typeof value === "string" &&
     value === value.trim() &&
     value.length <= 254 &&
-    /^[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+$/u.test(value)
+    !value.includes("..") &&
+    /^[^\s@,<>]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/u.test(value)
   );
 }
 

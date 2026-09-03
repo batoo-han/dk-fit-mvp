@@ -69,8 +69,11 @@ describe("container runner preflight", () => {
     expect(result.stderr).not.toContain(unsafeValue);
   });
 
-  it("rejects an unsafe lead recipient by key name without echoing its value", async () => {
-    const unsafeValue = "lead-recipient@example.test, attacker@example.test";
+  it.each([
+    "lead-recipient@example.test, attacker@example.test",
+    "lead@.example.test",
+    "lead@example..test",
+  ])("rejects an invalid lead recipient by key name without echoing its value", async (unsafeValue) => {
     const result = await runCopiedPreflight({
       ...completeEnvironment,
       LEAD_RECIPIENT_EMAIL: unsafeValue,
