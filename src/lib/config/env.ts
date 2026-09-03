@@ -35,6 +35,7 @@ const rawEnvironmentSchema = z
     LEAD_RECIPIENT_EMAIL: safeEmail,
     SMTP_CONNECTION_TIMEOUT_MS: positiveIntegerText,
     SMTP_SOCKET_TIMEOUT_MS: positiveIntegerText,
+    TELEGRAM_BOT_API_BASE_URL: requiredText,
     TELEGRAM_BOT_TOKEN: requiredText,
     TELEGRAM_BOT_USERNAME: z
       .string()
@@ -66,7 +67,7 @@ export type ServerEnv = {
     connectionTimeoutMs: number;
     socketTimeoutMs: number;
   };
-  telegram: { token: string; username: string; webhookSecret: string };
+  telegram: { apiBaseUrl: URL; token: string; username: string; webhookSecret: string };
   redisUrl: string;
   piiHashSecret: string;
   legalOperatorName: string;
@@ -116,6 +117,19 @@ function parseRedisUrl(value: string): string {
   }
 }
 
+function parseTelegramBotApiBaseUrl(value: string): URL {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+      throw new Error("Telegram Bot API base URL must be a plain HTTPS URL");
+    }
+    url.pathname = `${url.pathname.replace(/\/+$/u, "")}/`;
+    return url;
+  } catch {
+    throw new EnvValidationError(["TELEGRAM_BOT_API_BASE_URL"]);
+  }
+}
+
 export function getServerEnv(source: Record<string, string | undefined> = process.env): ServerEnv {
   const result = rawEnvironmentSchema.safeParse(source as RawEnvironment);
   if (!result.success) {
@@ -141,6 +155,7 @@ export function getServerEnv(source: Record<string, string | undefined> = proces
       socketTimeoutMs: environment.SMTP_SOCKET_TIMEOUT_MS,
     },
     telegram: {
+      apiBaseUrl: parseTelegramBotApiBaseUrl(environment.TELEGRAM_BOT_API_BASE_URL),
       token: environment.TELEGRAM_BOT_TOKEN,
       username: environment.TELEGRAM_BOT_USERNAME,
       webhookSecret: environment.TELEGRAM_WEBHOOK_SECRET,

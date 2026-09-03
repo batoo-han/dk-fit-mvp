@@ -14,6 +14,8 @@ type LeadFormProps = {
 };
 
 const content = landingContent.leadForm;
+const DELIVERY_RECHECK_DELAY_MS = 2_000;
+const MAX_DELIVERY_RECHECKS = 75;
 
 export function LeadForm({ request = submitLead }: LeadFormProps) {
   const [state, dispatch] = useReducer(leadFormReducer, initialLeadFormState);
@@ -22,28 +24,15 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
   const [formStartedAt] = useState(() => Date.now());
   const honeypot = useRef<HTMLInputElement | null>(null);
   const firstInvalidField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const redirectTimer = useRef<number | undefined>(undefined);
+  const telegramWindow = useRef<Window | null>(null);
 
   useEffect(() => () => {
-    if (redirectTimer.current !== undefined) {
-      window.clearTimeout(redirectTimer.current);
-    }
+    closeTelegramWindow(telegramWindow);
   }, []);
 
   useEffect(() => {
     form.current?.setAttribute("data-client-ready", "true");
   }, []);
-
-  useEffect(() => {
-    if (state.status !== "email_accepted" || !state.telegramDeepLink) {
-      return;
-    }
-
-    redirectTimer.current = window.setTimeout(() => {
-      dispatch({ type: "REDIRECT" });
-      window.location.assign(state.telegramDeepLink!);
-    }, 0);
-  }, [state.status, state.telegramDeepLink]);
 
   function update(field: keyof LeadFormValues, value: string | boolean) {
     idempotencyKey.current = undefined;
@@ -66,32 +55,53 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
 
     const key = idempotencyKey.current ?? createIdempotencyKey();
     idempotencyKey.current = key;
+    telegramWindow.current = reserveTelegramWindow();
     dispatch({ type: "SUBMIT" });
-    try {
-      const response = await request(toLeadRequest(state.values, formStartedAt, honeypot.current?.value ?? ""), key);
-      const payload = await safeJson(response);
-      if (response.status === 201 && isLeadSuccess(payload)) {
-        dispatch({ type: "EMAIL_ACCEPTED", telegramDeepLink: payload.telegramDeepLink });
-        return;
-      }
-
-      if (response.status === 422 && isLeadError(payload)) {
-        const serverFieldErrors = mapServerFieldErrors(payload.error.fieldErrors);
-        if (Object.keys(serverFieldErrors).length === 0) {
-          dispatch({ type: "VALIDATION_ERROR", fieldErrors: {}, message: "Проверьте введённые данные и повторите попытку." });
+    const leadRequest = toLeadRequest(state.values, formStartedAt, honeypot.current?.value ?? "");
+    for (let rechecks = 0; rechecks <= MAX_DELIVERY_RECHECKS; rechecks += 1) {
+      try {
+        const response = await request(leadRequest, key);
+        const payload = await safeJson(response);
+        if (response.status === 201 && isLeadSuccess(payload)) {
+          dispatch({ type: "EMAIL_ACCEPTED", telegramDeepLink: payload.telegramDeepLink });
+          navigateTelegramWindow(telegramWindow, payload.telegramDeepLink);
           return;
         }
-        dispatch({ type: "VALIDATION_ERROR", fieldErrors: serverFieldErrors });
-        window.requestAnimationFrame(() => firstInvalidField.current?.focus());
+
+        if (isRequestInProgress(response, payload) && rechecks < MAX_DELIVERY_RECHECKS) {
+          await waitForDeliveryRecheck();
+          continue;
+        }
+
+        if (response.status === 422 && isLeadError(payload)) {
+          const serverFieldErrors = mapServerFieldErrors(payload.error.fieldErrors);
+          if (Object.keys(serverFieldErrors).length === 0) {
+            closeTelegramWindow(telegramWindow);
+            dispatch({ type: "VALIDATION_ERROR", fieldErrors: {}, message: "Проверьте введённые данные и повторите попытку." });
+            return;
+          }
+          closeTelegramWindow(telegramWindow);
+          dispatch({ type: "VALIDATION_ERROR", fieldErrors: serverFieldErrors });
+          window.requestAnimationFrame(() => firstInvalidField.current?.focus());
+          return;
+        }
+        if (response.status === 429) {
+          closeTelegramWindow(telegramWindow);
+          dispatch({ type: "RATE_LIMITED", message: content.errors.rateLimited });
+          return;
+        }
+        closeTelegramWindow(telegramWindow);
+        dispatch({ type: "DELIVERY_ERROR", message: content.errors.unavailable });
+        return;
+      } catch (error) {
+        if (isRequestTimeout(error) && rechecks < MAX_DELIVERY_RECHECKS) {
+          await waitForDeliveryRecheck();
+          continue;
+        }
+        closeTelegramWindow(telegramWindow);
+        dispatch({ type: "DELIVERY_ERROR", message: content.errors.connection });
         return;
       }
-      if (response.status === 429) {
-        dispatch({ type: "RATE_LIMITED", message: content.errors.rateLimited });
-        return;
-      }
-      dispatch({ type: "DELIVERY_ERROR", message: content.errors.unavailable });
-    } catch {
-      dispatch({ type: "DELIVERY_ERROR", message: content.errors.connection });
     }
   }
 
@@ -169,6 +179,11 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
       <p aria-live="polite" className={styles.message} data-kind={messageKind} role="status">
         {message}
       </p>
+      {state.status === "email_accepted" && state.telegramDeepLink ? (
+        <a className={styles.telegramLink} href={state.telegramDeepLink} rel="noopener noreferrer" target="_blank">
+          {content.telegramOpenLabel}
+        </a>
+      ) : null}
       <p className={styles.telegramNote}>{content.telegramNote}</p>
     </form>
   );
@@ -227,6 +242,53 @@ function isLeadSuccess(payload: unknown): payload is LeadSubmitSuccess {
 
 function isLeadError(payload: unknown): payload is LeadSubmitError {
   return typeof payload === "object" && payload !== null && (payload as LeadSubmitError).ok === false;
+}
+
+function isRequestInProgress(response: Response, payload: unknown): boolean {
+  return response.status === 409
+    && isLeadError(payload)
+    && payload.error.code === "REQUEST_IN_PROGRESS";
+}
+
+function isRequestTimeout(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function waitForDeliveryRecheck(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, DELIVERY_RECHECK_DELAY_MS));
+}
+
+function reserveTelegramWindow(): Window | null {
+  try {
+    const reservedWindow = window.open("about:blank", "dk-fit-telegram");
+    if (reservedWindow) {
+      reservedWindow.opener = null;
+    }
+    return reservedWindow;
+  } catch {
+    return null;
+  }
+}
+
+function navigateTelegramWindow(target: React.RefObject<Window | null>, deepLink: string): void {
+  const reservedWindow = target.current;
+  target.current = null;
+  if (!reservedWindow || reservedWindow.closed) {
+    return;
+  }
+  try {
+    reservedWindow.location.assign(deepLink);
+  } catch {
+    reservedWindow.close();
+  }
+}
+
+function closeTelegramWindow(target: React.RefObject<Window | null>): void {
+  const reservedWindow = target.current;
+  target.current = null;
+  if (reservedWindow && !reservedWindow.closed) {
+    reservedWindow.close();
+  }
 }
 
 function mapServerFieldErrors(errors: Record<string, string[]> | undefined): Partial<Record<keyof LeadFormValues, string>> {

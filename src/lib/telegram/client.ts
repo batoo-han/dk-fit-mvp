@@ -1,6 +1,5 @@
 import "server-only";
 
-const TELEGRAM_API_BASE_URL = "https://api.telegram.org";
 const SEND_TIMEOUT_MS = 10_000;
 
 export class TelegramDeliveryUnknownError extends Error {
@@ -18,6 +17,7 @@ export class TelegramDeliveryError extends Error {
 }
 
 export async function sendTelegramMessage(
+  apiBaseUrl: URL,
   token: string,
   chatId: number,
   text: string,
@@ -27,7 +27,7 @@ export async function sendTelegramMessage(
   const timeout = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
 
   try {
-    const response = await fetchImplementation(`${TELEGRAM_API_BASE_URL}/bot${token}/sendMessage`, {
+    const response = await fetchImplementation(`${apiBaseUrl.href}bot${token}/sendMessage`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text }),

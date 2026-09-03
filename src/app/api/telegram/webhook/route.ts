@@ -91,7 +91,7 @@ export async function POST(request: Request): Promise<Response> {
       botUsername: env.telegram.username,
       webhookSecret: env.telegram.webhookSecret,
       dedupe: createTelegramDedupe(env.piiHashSecret),
-      sendMessage: (chatId, text) => sendTelegramMessage(env.telegram.token, chatId, text),
+      sendMessage: (chatId, text) => sendTelegramMessage(env.telegram.apiBaseUrl, env.telegram.token, chatId, text),
       log: (event) => console.error(event),
     });
 

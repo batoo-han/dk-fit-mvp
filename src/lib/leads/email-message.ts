@@ -24,7 +24,6 @@ export function formatLeadEmail(environment: EmailEnvironment, lead: EmailLead):
     subject: LEAD_EMAIL_SUBJECT,
     text: [
       `Новая заявка с сайта ${environment.publicSiteUrl.toString().replace(/\/$/u, "")}`,
-      `Автор: ${environment.siteAuthorFullName}`,
       "",
       "Данные из заявки:",
       `Имя: ${lead.name}`,

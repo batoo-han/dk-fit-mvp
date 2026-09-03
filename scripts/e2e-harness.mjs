@@ -36,6 +36,7 @@ const FIXTURE_ENVIRONMENT = Object.freeze({
   SMTP_SECURE: "true",
   SMTP_SOCKET_TIMEOUT_MS: "5000",
   SMTP_USER: "fixture-user",
+  TELEGRAM_BOT_API_BASE_URL: "https://telegram-proxy.test/tg",
   TELEGRAM_BOT_TOKEN: "fixture-telegram-token",
   TELEGRAM_BOT_USERNAME: "test_bot",
   TELEGRAM_WEBHOOK_SECRET: "fixture-webhook-secret-for-e2e-12345",

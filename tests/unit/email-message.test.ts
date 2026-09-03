@@ -20,7 +20,6 @@ describe("lead email message", () => {
       subject: "D&K Fit — новая заявка",
       text: [
         "Новая заявка с сайта https://dk-fit.test",
-        "Автор: Тестовый Автор",
         "",
         "Данные из заявки:",
         "Имя: Анна Иванова",
@@ -45,6 +44,7 @@ describe("lead email message", () => {
       subject: "D&K Fit — новая заявка",
     });
     expect(message.text).toContain("Цель тренировок: Не указана");
+    expect(message.text).not.toContain("Автор:");
     expect(JSON.stringify({ to: message.to, subject: message.subject })).not.toContain("Анна Иванова");
     expect(JSON.stringify({ to: message.to, subject: message.subject })).not.toContain("900");
   });

@@ -6,6 +6,7 @@ const REQUIRED_TEXT_KEYS = [
   "SMTP_PASSWORD",
   "SMTP_FROM",
   "LEAD_RECIPIENT_EMAIL",
+  "TELEGRAM_BOT_API_BASE_URL",
   "TELEGRAM_BOT_TOKEN",
   "LEGAL_OPERATOR_NAME",
   "LEGAL_OPERATOR_CONTACT",
@@ -65,6 +66,9 @@ export function invalidEnvironmentKeys(environment = process.env) {
 
   if (!isUrlWithProtocols(environment.REDIS_URL, ["redis:", "rediss:"])) {
     invalid.add("REDIS_URL");
+  }
+  if (!isUrlWithProtocols(environment.TELEGRAM_BOT_API_BASE_URL, ["https:"])) {
+    invalid.add("TELEGRAM_BOT_API_BASE_URL");
   }
   if (!isSafeEmail(environment.LEAD_RECIPIENT_EMAIL)) {
     invalid.add("LEAD_RECIPIENT_EMAIL");

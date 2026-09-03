@@ -19,6 +19,7 @@ const serverEnvironment = {
   LEAD_RECIPIENT_EMAIL: "lead-recipient@example.test",
   SMTP_CONNECTION_TIMEOUT_MS: "10000",
   SMTP_SOCKET_TIMEOUT_MS: "15000",
+  TELEGRAM_BOT_API_BASE_URL: "https://telegram-proxy.test/tg",
   TELEGRAM_BOT_TOKEN: "fixture-bot-token",
   TELEGRAM_BOT_USERNAME: "dk_fit_test_bot",
   TELEGRAM_WEBHOOK_SECRET: "w".repeat(32),

@@ -135,7 +135,9 @@ After all gates pass and explicit authority is recorded:
 2. Deploy the image with the matching server-only environment and Redis.
 3. Confirm HTTPS before binding the Telegram webhook. Set the webhook only
    through `scripts/set-telegram-webhook.mjs`; verify its URL, pending updates,
-   and last error without exposing the token.
+   and last error without exposing the token. Set
+   `TELEGRAM_BOT_API_BASE_URL=https://vbth.batoohan.ru/tg`; the script and the
+   runtime `sendMessage` call use this same HTTPS proxy.
 4. Check homepage 200, canonical and security headers, and exactly two top-level
    landing sections at desktop and mobile widths.
 5. With separate explicit authority, run one real lead and verify the exact

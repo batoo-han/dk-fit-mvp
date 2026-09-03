@@ -28,7 +28,7 @@ async function respond(route: Route, response: LeadErrorResponse) {
   });
 }
 
-test("submits exactly one valid request then opens only the returned Telegram deep link", async ({ page }) => {
+test("submits exactly one valid request then opens the returned Telegram deep link in a new window", async ({ page }) => {
   let requests = 0;
   let payload: unknown;
   await page.route("**/api/leads", async (route) => {
@@ -40,7 +40,7 @@ test("submits exactly one valid request then opens only the returned Telegram de
       status: 201,
     });
   });
-  await page.route("https://t.me/**", (route) => route.fulfill({ body: "Telegram" }));
+  await page.context().route("https://t.me/**", (route) => route.fulfill({ body: "Telegram" }));
 
   await openForm(page);
   const localOrigin = new URL(page.url()).origin;
@@ -51,9 +51,12 @@ test("submits exactly one valid request then opens only the returned Telegram de
       nativeFormNavigations += 1;
     }
   });
+  const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Отправить заявку" }).click();
+  const telegramPage = await popupPromise;
 
-  await expect(page).toHaveURL(telegramDeepLink);
+  await expect(telegramPage).toHaveURL(telegramDeepLink);
+  await expect(page).toHaveURL(/\/$/u);
   expect(requests).toBe(1);
   expect(nativeFormNavigations).toBe(0);
   expect(payload).toMatchObject({
@@ -121,7 +124,7 @@ test("suppresses a double click while the first lead request is pending", async 
   expect(requests).toBe(1);
 });
 
-test("Back after a success never resubmits the completed form", async ({ page }) => {
+test("closing the Telegram window after success never resubmits the completed form", async ({ page }) => {
   let requests = 0;
   await page.route("**/api/leads", async (route) => {
     requests += 1;
@@ -131,12 +134,14 @@ test("Back after a success never resubmits the completed form", async ({ page })
       status: 201,
     });
   });
-  await page.route("https://t.me/**", (route) => route.fulfill({ body: "Telegram" }));
+  await page.context().route("https://t.me/**", (route) => route.fulfill({ body: "Telegram" }));
   await openForm(page);
 
+  const popupPromise = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Отправить заявку" }).click();
-  await expect(page).toHaveURL(telegramDeepLink);
-  await page.goBack();
+  const telegramPage = await popupPromise;
+  await expect(telegramPage).toHaveURL(telegramDeepLink);
+  await telegramPage.close();
 
   await expect(page).toHaveURL(/\/$/u);
   await expect(page.getByLabel("Имя")).toBeVisible();

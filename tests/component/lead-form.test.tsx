@@ -1,10 +1,14 @@
 import { readFile } from "node:fs/promises";
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LeadForm } from "../../src/features/lead-form/LeadForm";
 import { submitLead, type LeadSubmitClientRequest } from "../../src/features/lead-form/submit-lead";
+
+beforeEach(() => {
+  vi.spyOn(window, "open").mockReturnValue(null);
+});
 
 afterEach(() => {
   cleanup();
@@ -65,18 +69,40 @@ describe("LeadForm", () => {
     expect(request.mock.calls[0]?.[1]).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
-  it("redirects only after a 201 email acceptance response", async () => {
+  it("reserves a new window during the click and navigates it only after a 201 email acceptance response", async () => {
     const request = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true, status: "email_accepted", telegramDeepLink: "https://t.me/test_bot?start=registered" }), { status: 201 }),
     );
     const assign = vi.fn();
-    Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+    const popup = { closed: false, close: vi.fn(), location: { assign }, opener: window } as unknown as Window;
+    vi.mocked(window.open).mockReturnValue(popup);
     render(<LeadForm request={request} />);
     fillValidLead();
 
     fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
 
+    expect(window.open).toHaveBeenCalledWith("about:blank", "dk-fit-telegram");
     expect(await screen.findByText("Заявка отправлена. Открываем Telegram…")).not.toBeNull();
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://t.me/test_bot?start=registered"));
+    expect(popup.opener).toBeNull();
+    expect(screen.getByRole("link", { name: "Открыть Telegram" }).getAttribute("target")).toBe("_blank");
+  });
+
+  it("rechecks the same lead while the server is still delivering its email", async () => {
+    const request = vi.fn()
+      .mockRejectedValueOnce(new DOMException("Timed out", "AbortError"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: false, error: { code: "REQUEST_IN_PROGRESS", requestId: "request-id" } }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, status: "email_accepted", telegramDeepLink: "https://t.me/test_bot?start=registered" }), { status: 201 }));
+    const assign = vi.fn();
+    vi.mocked(window.open).mockReturnValue({ closed: false, close: vi.fn(), location: { assign }, opener: window } as unknown as Window);
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    expect(await screen.findByText("Заявка отправлена. Открываем Telegram…", {}, { timeout: 5_000 })).not.toBeNull();
+    expect(request).toHaveBeenCalledTimes(3);
+    expect(request.mock.calls[1]?.[1]).toBe(request.mock.calls[0]?.[1]);
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://t.me/test_bot?start=registered"));
   });
 
@@ -147,6 +173,21 @@ describe("LeadForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
 
     await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Проверьте введённые данные и повторите попытку."));
+  });
+
+  it("closes the reserved Telegram window when delivery fails", async () => {
+    const request = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: false, error: { code: "EMAIL_UNAVAILABLE", requestId: "request-id" } }), { status: 503 }),
+    );
+    const close = vi.fn();
+    vi.mocked(window.open).mockReturnValue({ closed: false, close, location: { assign: vi.fn() }, opener: window } as unknown as Window);
+    render(<LeadForm request={request} />);
+    fillValidLead();
+
+    fireEvent.click(screen.getByRole("button", { name: "Отправить заявку" }));
+
+    expect(await screen.findByText("Сервис временно недоступен. Попробуйте ещё раз позже.")).not.toBeNull();
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it.each([

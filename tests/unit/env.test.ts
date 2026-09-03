@@ -16,6 +16,7 @@ const validEnvironment = {
   SMTP_CONNECTION_TIMEOUT_MS: "10000",
   SMTP_SOCKET_TIMEOUT_MS: "15000",
   TELEGRAM_BOT_TOKEN: "fixture-bot-token",
+  TELEGRAM_BOT_API_BASE_URL: "https://telegram-proxy.test/tg/",
   TELEGRAM_BOT_USERNAME: "dk_fit_test_bot",
   TELEGRAM_WEBHOOK_SECRET: "w".repeat(32),
   REDIS_URL: "redis://127.0.0.1:6379",
@@ -37,6 +38,7 @@ describe("getServerEnv", () => {
     expect(env.smtp).toMatchObject({ port: 465, secure: true });
     expect(env.leadRecipientEmail).toBe("lead-recipient@example.test");
     expect(env.telegram.username).toBe("dk_fit_test_bot");
+    expect(env.telegram.apiBaseUrl.href).toBe("https://telegram-proxy.test/tg/");
   });
 
   it("fails closed to production origin policy when NODE_ENV is absent", () => {
@@ -71,6 +73,13 @@ describe("getServerEnv", () => {
       "TELEGRAM_BOT_USERNAME",
     );
   });
+
+  it.each([undefined, "http://telegram-proxy.test/tg", "not-a-url"])(
+    "rejects an unsafe Telegram Bot API base URL",
+    (TELEGRAM_BOT_API_BASE_URL) => {
+      expect(() => getServerEnv(environment({ TELEGRAM_BOT_API_BASE_URL }))).toThrow("TELEGRAM_BOT_API_BASE_URL");
+    },
+  );
 
   it.each(["0", "65536", "not-a-port"])("rejects SMTP port %s", (SMTP_PORT) => {
     expect(() => getServerEnv(environment({ SMTP_PORT }))).toThrow("SMTP_PORT");

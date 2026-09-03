@@ -27,6 +27,7 @@ export const landingContent = {
     telegramNote:
       "После отправки откроется Telegram. Нажмите Start / Запустить, чтобы получить подтверждение.",
     successMessage: "Заявка отправлена. Открываем Telegram…",
+    telegramOpenLabel: "Открыть Telegram",
     errors: {
       required: "Заполните это поле",
       invalidName: "Укажите имя от 2 до 80 символов",

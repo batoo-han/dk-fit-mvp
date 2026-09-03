@@ -39,6 +39,10 @@ also permits only an exact same-origin `localhost` or `127.0.0.1` request. The
 example username `DandK_FitBody_bot` is public configuration only; keep its token
 and all other secrets out of the repository.
 
+`TELEGRAM_BOT_API_BASE_URL` is the HTTPS base URL used for every Bot API call.
+For this deployment it is `https://vbth.batoohan.ru/tg`; both webhook setup and
+the `/start` reply are sent through that proxy.
+
 По умолчанию порт приложения публикуется только на loopback хоста:
 `127.0.0.1:${DK_FIT_APP_PORT:-3000}`. Этот вариант рассчитан на доверенный
 reverse proxy на том же хосте. Proxy обязан **перезаписывать**, а не дополнять

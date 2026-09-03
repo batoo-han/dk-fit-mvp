@@ -22,6 +22,7 @@ export type LandingContent = {
     submitLabel: string;
     telegramNote: string;
     successMessage: string;
+    telegramOpenLabel: string;
     errors: {
       required: string;
       invalidName: string;
