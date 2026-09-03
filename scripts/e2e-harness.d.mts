@@ -4,8 +4,22 @@ export type NextCommand = {
   shell: false;
 };
 
+export const standaloneRuntimeCopyOptions: Readonly<{ dereference: true; recursive: true }>;
+
 export function assertNode24(nodeVersion?: string): void;
 export function createNextCommand(subcommand: string, args?: string[]): NextCommand;
+export function createStandaloneRuntimeLayout(options: {
+  buildDirectory: string;
+  runtimeDirectory: string;
+}): Array<{ from: string; to: string }>;
+export function createStandaloneServerCommand(options: {
+  port: number;
+  runtimeDirectory: string;
+}): NextCommand & { cwd: string; env: Record<string, string> };
+export function materializeStandaloneRuntime(options: {
+  buildDirectory: string;
+  runtimeDirectory: string;
+}): Promise<void>;
 export function findAvailableLoopbackPort(): Promise<number>;
 export function waitForHttpReady(options: {
   url: string;
@@ -19,3 +33,10 @@ export function waitForPortToClose(options: {
   intervalMs?: number;
 }): Promise<void>;
 export function runProductionE2e(playwrightArgs: string[]): Promise<{ port: number }>;
+export function withQuarantinedEnvironment<T>(options: {
+  environmentPath: string;
+  quarantineDirectory: string;
+}, run: () => Promise<T>): Promise<T>;
+export function cleanupProductionE2eWorkspace(options: {
+  temporaryRoot: string;
+}): Promise<void>;

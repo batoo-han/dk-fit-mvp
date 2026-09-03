@@ -22,7 +22,18 @@ export default defineConfig({
     baseURL,
   },
   projects: [
-    { name: "desktop", use: { ...devices["Desktop Chrome"] } },
-    { name: "mobile", use: { ...devices["iPhone 13"] } },
+    { name: "desktop", testIgnore: "**/visual.spec.ts", use: { ...devices["Desktop Chrome"] } },
+    { name: "mobile", testIgnore: "**/visual.spec.ts", use: { ...devices["iPhone 13"] } },
+    {
+      name: "visual-css-pixels",
+      testMatch: "**/visual.spec.ts",
+      use: {
+        browserName: "chromium",
+        deviceScaleFactor: 1,
+        hasTouch: false,
+        isMobile: false,
+        viewport: { height: 844, width: 390 },
+      },
+    },
   ],
 });

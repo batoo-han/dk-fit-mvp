@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 
-test("renders an opaque hero portrait without the Next development overlay", async ({ page }) => {
+test("renders an opaque hero portrait without the Next development overlay", async ({ page }, testInfo) => {
+  expect(testInfo.project.name).toBe("visual-css-pixels");
+  expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -17,8 +19,8 @@ test("renders an opaque hero portrait without the Next development overlay", asy
   await expect(page.locator("nextjs-portal")).toHaveCount(0);
 });
 
-test("keeps the FIT decoration behind the hero portrait", async ({ page }) => {
-  test.skip(test.info().project.name === "mobile", "Stacking gate uses the desktop CSS-pixel browser profile.");
+test("keeps the FIT decoration behind the hero portrait", async ({ page }, testInfo) => {
+  expect(testInfo.project.name).toBe("visual-css-pixels");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -40,7 +42,8 @@ test("keeps the FIT decoration behind the hero portrait", async ({ page }) => {
 });
 
 test("captures the approved Editorial Strength baselines in CSS-pixel viewports", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === "mobile", "Baselines are 72-DPI CSS-pixel captures, not device-pixel iPhone captures.");
+  expect(testInfo.project.name).toBe("visual-css-pixels");
+  expect(await page.evaluate(() => window.devicePixelRatio)).toBe(1);
 
   for (const baseline of [
     { expected: "editorial-strength-desktop-desktop-win32.png", viewport: { width: 1440, height: 900 } },

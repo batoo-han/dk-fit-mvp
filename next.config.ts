@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isControlledHttpE2e = process.env.DK_FIT_E2E_ALLOW_INSECURE_HTTP === "true";
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
@@ -15,7 +17,7 @@ const securityHeaders = [
       "font-src 'self'",
       "connect-src 'self'",
       "manifest-src 'self'",
-      "upgrade-insecure-requests",
+      ...(isControlledHttpE2e ? [] : ["upgrade-insecure-requests"]),
     ].join("; "),
   },
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },

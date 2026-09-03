@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { waitForClientReady } from "./helpers/client-readiness";
+
 const telegramDeepLink = "https://t.me/test_bot?start=registered";
 
 type LeadErrorResponse = {
@@ -9,6 +11,7 @@ type LeadErrorResponse = {
 
 async function openForm(page: Page) {
   await page.goto("/", { waitUntil: "networkidle" });
+  await waitForClientReady(page);
   await page.getByLabel("Имя").fill("Анна");
   await page.getByLabel("Телефон").fill("+7 999 123-45-67");
   await page.getByLabel("Согласие на обработку данных").check();
@@ -40,10 +43,19 @@ test("submits exactly one valid request then opens only the returned Telegram de
   await page.route("https://t.me/**", (route) => route.fulfill({ body: "Telegram" }));
 
   await openForm(page);
+  const localOrigin = new URL(page.url()).origin;
+  let nativeFormNavigations = 0;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (request.isNavigationRequest() && request.method() === "GET" && url.origin === localOrigin && url.pathname === "/") {
+      nativeFormNavigations += 1;
+    }
+  });
   await page.getByRole("button", { name: "Отправить заявку" }).click();
 
   await expect(page).toHaveURL(telegramDeepLink);
   expect(requests).toBe(1);
+  expect(nativeFormNavigations).toBe(0);
   expect(payload).toMatchObject({
     consent: true,
     name: "Анна",

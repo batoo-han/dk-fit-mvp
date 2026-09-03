@@ -1,9 +1,33 @@
 import { spawn } from "node:child_process";
+import { cp, mkdtemp, rename, rm } from "node:fs/promises";
+import path from "node:path";
 import net from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
 
 const LOOPBACK_HOST = "127.0.0.1";
 const NEXT_BIN = "node_modules/next/dist/bin/next";
+export const standaloneRuntimeCopyOptions = Object.freeze({ dereference: true, recursive: true });
+const FIXTURE_ENVIRONMENT = Object.freeze({
+  DK_FIT_E2E_ALLOW_INSECURE_HTTP: "true",
+  LEGAL_OPERATOR_CONTACT: "legal@dk-fit.test",
+  LEGAL_OPERATOR_NAME: "Тестовый оператор",
+  NODE_ENV: "production",
+  PII_HASH_SECRET: "fixture-pii-hash-secret-for-e2e-12345",
+  PUBLIC_SITE_URL: "https://dk-fit.test",
+  REDIS_URL: "redis://127.0.0.1:6399",
+  SITE_AUTHOR_FULL_NAME: "Тестовый Автор",
+  SMTP_CONNECTION_TIMEOUT_MS: "5000",
+  SMTP_FROM: "D&K Fit <no-reply@dk-fit.test>",
+  SMTP_HOST: "smtp.dk-fit.test",
+  SMTP_PASSWORD: "fixture-smtp-password",
+  SMTP_PORT: "465",
+  SMTP_SECURE: "true",
+  SMTP_SOCKET_TIMEOUT_MS: "5000",
+  SMTP_USER: "fixture-user",
+  TELEGRAM_BOT_TOKEN: "fixture-telegram-token",
+  TELEGRAM_BOT_USERNAME: "test_bot",
+  TELEGRAM_WEBHOOK_SECRET: "fixture-webhook-secret-for-e2e-12345",
+});
 
 export function assertNode24(nodeVersion = process.versions.node) {
   const major = Number.parseInt(nodeVersion.replace(/^v/u, "").split(".", 1)[0], 10);
@@ -15,7 +39,29 @@ export function assertNode24(nodeVersion = process.versions.node) {
 export function createNextCommand(subcommand, args = []) {
   return {
     command: process.execPath,
-    args: [NEXT_BIN, subcommand, ...args],
+    args: [path.resolve(NEXT_BIN), subcommand, ...args],
+    shell: false,
+  };
+}
+
+export function createStandaloneRuntimeLayout({ buildDirectory, runtimeDirectory }) {
+  return [
+    { from: path.join(buildDirectory, ".next", "standalone"), to: runtimeDirectory },
+    { from: path.join(buildDirectory, ".next", "static"), to: path.join(runtimeDirectory, ".next", "static") },
+    { from: path.join(buildDirectory, "public"), to: path.join(runtimeDirectory, "public") },
+  ];
+}
+
+export function createStandaloneServerCommand({ port, runtimeDirectory }) {
+  return {
+    command: process.execPath,
+    args: ["server.js"],
+    cwd: runtimeDirectory,
+    env: {
+      ...FIXTURE_ENVIRONMENT,
+      HOSTNAME: LOOPBACK_HOST,
+      PORT: String(port),
+    },
     shell: false,
   };
 }
@@ -77,44 +123,116 @@ export async function runProductionE2e(playwrightArgs) {
   assertNode24();
   const port = await findAvailableLoopbackPort();
   const baseUrl = `http://${LOOPBACK_HOST}:${port}`;
+  const temporaryRoot = await mkdtemp(path.join(process.cwd(), ".dk-fit-production-e2e-"));
+  const runtimeDirectory = path.join(temporaryRoot, "runtime");
+  const nextEnvPath = path.resolve("next-env.d.ts");
+  const nextEnvBackupPath = path.join(temporaryRoot, "next-env.d.ts");
 
-  await runCommand(createNextCommand("build"));
-
-  const server = spawnOwnedServer(port);
   try {
-    await waitForHttpReady({ url: `${baseUrl}/` });
-    const playwrightOutput = await runCommand({
-      command: process.execPath,
-      args: ["node_modules/@playwright/test/cli.js", "test", ...playwrightArgs],
-      shell: false,
-      env: {
-        ...process.env,
-        DK_FIT_E2E_BASE_URL: baseUrl,
-      },
+    await withQuarantinedEnvironment({
+      environmentPath: path.resolve(".env"),
+      quarantineDirectory: temporaryRoot,
+    }, async () => {
+      await cp(nextEnvPath, nextEnvBackupPath);
+      try {
+        await runCommand({
+          ...createNextCommand("build"),
+          env: FIXTURE_ENVIRONMENT,
+        });
+      } finally {
+        await cp(nextEnvBackupPath, nextEnvPath);
+      }
     });
-    reportPlaywrightSummary(playwrightOutput);
+    await materializeStandaloneRuntime({ buildDirectory: process.cwd(), runtimeDirectory });
+
+    const server = spawnOwnedServer({ port, runtimeDirectory });
+    try {
+      try {
+        await waitForHttpReady({ url: `${baseUrl}/` });
+      } catch (error) {
+        const output = redactFixtureValues(server.e2eOutput ?? "").trim().slice(-2_000);
+        const processState = server.exitCode === null ? "still running" : `exited with code ${server.exitCode}`;
+        const spawnError = server.e2eError ? `; spawn error: ${server.e2eError}` : "";
+        throw new Error(`${error instanceof Error ? error.message : "E2E server was not ready"} (${processState})${spawnError}${output ? `: ${output}` : ""}`);
+      }
+      const playwrightOutput = await runCommand({
+        command: process.execPath,
+        args: ["node_modules/@playwright/test/cli.js", "test", ...playwrightArgs],
+        shell: false,
+        env: {
+          ...FIXTURE_ENVIRONMENT,
+          DK_FIT_E2E_BASE_URL: baseUrl,
+        },
+      });
+      reportPlaywrightSummary(playwrightOutput);
+    } finally {
+      await stopOwnedServer(server);
+      await waitForPortToClose({ port });
+    }
   } finally {
-    await stopOwnedServer(server);
-    await waitForPortToClose({ port });
+    await cleanupProductionE2eWorkspace({ temporaryRoot });
   }
 
   return { port };
 }
 
-function spawnOwnedServer(port) {
-  const nextStart = createNextCommand("start", ["--hostname", LOOPBACK_HOST, "--port", String(port)]);
-  return spawn(nextStart.command, nextStart.args, {
-    cwd: process.cwd(),
-    env: { ...process.env, NODE_ENV: "production" },
-    shell: nextStart.shell,
-    stdio: "ignore",
-    windowsHide: true,
-  });
+export async function materializeStandaloneRuntime({ buildDirectory, runtimeDirectory }) {
+  for (const entry of createStandaloneRuntimeLayout({ buildDirectory, runtimeDirectory })) {
+    await cp(entry.from, entry.to, standaloneRuntimeCopyOptions);
+  }
 }
 
-async function runCommand({ command, args, shell, env = process.env }) {
+export async function withQuarantinedEnvironment({ environmentPath, quarantineDirectory }, run) {
+  const quarantinePath = path.join(quarantineDirectory, ".env.e2e-quarantine");
+  let quarantined = false;
+
+  try {
+    await rename(environmentPath, quarantinePath);
+    quarantined = true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  try {
+    return await run();
+  } finally {
+    if (quarantined) {
+      await rename(quarantinePath, environmentPath);
+    }
+  }
+}
+
+export async function cleanupProductionE2eWorkspace({ temporaryRoot }) {
+  await rm(temporaryRoot, { force: true, recursive: true });
+}
+
+function spawnOwnedServer({ port, runtimeDirectory }) {
+  const standalone = createStandaloneServerCommand({ port, runtimeDirectory });
+  const server = spawn(standalone.command, standalone.args, {
+    cwd: standalone.cwd,
+    env: standalone.env,
+    shell: standalone.shell,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  server.e2eOutput = "";
+  server.e2eError = undefined;
+  server.once("error", (error) => {
+    server.e2eError = error instanceof Error ? error.message : String(error);
+  });
+  for (const stream of [server.stdout, server.stderr]) {
+    stream?.on("data", (chunk) => {
+      server.e2eOutput += chunk;
+    });
+  }
+  return server;
+}
+
+async function runCommand({ command, args, cwd = process.cwd(), shell, env }) {
   const child = spawn(command, args, {
-    cwd: process.cwd(),
+    cwd,
     env,
     shell,
     stdio: ["ignore", "pipe", "pipe"],
@@ -130,10 +248,17 @@ async function runCommand({ command, args, shell, env = process.env }) {
   const exitCode = await waitForExit(child);
 
   if (exitCode !== 0) {
-    throw new Error(`E2E prerequisite exited with code ${exitCode ?? "unknown"}`);
+    throw new Error(`E2E prerequisite exited with code ${exitCode ?? "unknown"}: ${redactFixtureValues(output).trim().slice(-2_000)}`);
   }
 
   return output;
+}
+
+function redactFixtureValues(output) {
+  return Object.values(FIXTURE_ENVIRONMENT).reduce(
+    (sanitized, value) => sanitized.replaceAll(value, "[redacted]"),
+    output,
+  );
 }
 
 function reportPlaywrightSummary(output) {

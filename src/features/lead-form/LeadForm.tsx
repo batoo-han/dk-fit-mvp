@@ -18,6 +18,7 @@ const content = landingContent.leadForm;
 export function LeadForm({ request = submitLead }: LeadFormProps) {
   const [state, dispatch] = useReducer(leadFormReducer, initialLeadFormState);
   const idempotencyKey = useRef<string | undefined>(undefined);
+  const form = useRef<HTMLFormElement | null>(null);
   const [formStartedAt] = useState(() => Date.now());
   const honeypot = useRef<HTMLInputElement | null>(null);
   const firstInvalidField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
@@ -27,6 +28,10 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
     if (redirectTimer.current !== undefined) {
       window.clearTimeout(redirectTimer.current);
     }
+  }, []);
+
+  useEffect(() => {
+    form.current?.setAttribute("data-client-ready", "true");
   }, []);
 
   useEffect(() => {
@@ -97,7 +102,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
   const messageKind = state.status === "email_accepted" || state.status === "redirecting" ? "success" : "error";
 
   return (
-    <form className={styles.form} noValidate onSubmit={handleSubmit}>
+    <form className={styles.form} noValidate onSubmit={handleSubmit} ref={form}>
       <InputField
         autoComplete="name"
         error={state.fieldErrors.name}
