@@ -8,7 +8,12 @@ Evidence is deliberately sanitized:
 - screenshots and test artifacts contain no submitted PII.
 
 The authoritative status and exact reproducible commands are in
-[`../acceptance-matrix.md`](../acceptance-matrix.md). The latest independent
-rerun is [`2026-09-03-task-10-rerun.md`](2026-09-03-task-10-rerun.md): the
-former E2E P0/P1 findings have passed, but a fresh aggregate lint P1 leaves the
-current local/staging verdict at **NO-GO**.
+[`../acceptance-matrix.md`](../acceptance-matrix.md). The latest evidence is
+[`2026-09-03-final-review-fix-wave.md`](2026-09-03-final-review-fix-wave.md):
+the full lint, typecheck, Vitest, controlled E2E, asset, and daemon-free Compose
+model gates pass. Production remains **NO-GO** only for the separately listed
+owner-input, Docker runtime, manual, and authorized external gates.
+
+[`2026-09-03-task-10-rerun.md`](2026-09-03-task-10-rerun.md) is retained as a
+historical snapshot of commit `2ee61b9`; its lint blocker was resolved later and
+must not be treated as the current verdict.

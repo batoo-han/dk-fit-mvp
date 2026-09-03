@@ -2,7 +2,10 @@
 
 Пакет подготовки двухэкранного лендинга персонального фитнес-тренера.
 
-Текущий статус: выбран визуальный вариант 2, **Editorial Strength**. Код приложения ещё не создавался; в каталоге находятся утверждённая спецификация, implementation plan, визуальный референс и инструкции для профильных агентов.
+Текущий статус: MVP в направлении **Editorial Strength** реализован и проходит
+локальные автоматизированные проверки. Production-релиз остаётся **NO-GO** до
+закрытия owner inputs, ручной accessibility-проверки, сборки образа на хосте с
+Docker daemon и отдельно разрешённых SMTP/Telegram/deploy smoke.
 
 ## Начать работу
 
@@ -28,3 +31,23 @@
 ## Docker Compose
 
 Production Compose reads `.env` by default; create it locally from `.env.example` and keep it outside Git. For an explicit deployment-specific file, set `DK_FIT_ENV_FILE` to its path before running Compose. The `app` service always runs with `NODE_ENV=production`, even if the selected env file contains another value.
+
+По умолчанию порт приложения публикуется только на loopback хоста:
+`127.0.0.1:${DK_FIT_APP_PORT:-3000}`. Этот вариант рассчитан на доверенный
+reverse proxy на том же хосте. Proxy обязан **перезаписывать**, а не дополнять
+и не передавать как есть, `X-Forwarded-For` одним проверенным IP клиента.
+Приложение не доверяет цепочкам или невалидным значениям заголовка и относит их
+к общей fail-closed identity `unknown` для rate limit. Не публикуйте app-порт на
+`0.0.0.0` без нового доверительного контракта ingress.
+
+`docker compose --env-file .env.example config --no-interpolate --quiet`
+проверяет Compose-модель без Docker daemon и без вывода значений. Это не
+заменяет `docker compose build`, запуск контейнера, проверку entrypoint/preflight
+или production environment.
+
+## Локальные проверки
+
+Используйте Node 24. Vitest настроен с `envDir: false`, поэтому unit/component/
+integration run не загружает root dotenv-файлы. Production build запускайте
+только через контролируемый E2E/release harness либо в изолированном окружении;
+raw `next build` может применять собственные правила загрузки окружения Next.js.

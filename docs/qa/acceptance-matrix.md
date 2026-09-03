@@ -1,37 +1,38 @@
 # D&K Fit — independent QA acceptance matrix
 
-**Task:** 10 rerun
-**Date:** 2026-09-03
-**Reviewed commit:** `2ee61b9`
-**Verdict:** **NO-GO for local/staging.**
+**Task:** Task 10 evidence plus final-review fix wave
 
-All browser runs used the controlled Node 24 fixture harness. During its owned
-build, it quarantines only the eight explicitly named Next-recognized root
-dotenv files (not arbitrary `.env*` files), never reads or logs their contents,
-restores them in `finally`, and starts an isolated standalone runtime on an
-owned loopback port. Browser API routes were intercepted; no SMTP, Redis,
-Telegram, webhook, deployment, or user environment value was contacted.
+**Date:** 2026-09-03
+
+**Reviewed code commit:** `86a11f3`
+**Verdict:** **Local automated gates pass; production remains NO-GO.**
+
+The final-fix verification used Node 24 only after Vitest was configured with
+`envDir: false`. Vitest therefore did not load root dotenv files. The browser
+run used the controlled fixture harness: it quarantined only recognized root
+dotenv filenames without reading their contents, restored them in `finally`,
+mocked lead/Telegram navigation, and used an owned loopback port. No SMTP,
+Redis, Telegram, webhook, deploy, Docker daemon, or user environment value was
+contacted.
 
 | Gate | Fresh evidence | Result | Owner / action |
 | --- | --- | --- | --- |
-| Hydration and iPhone submission | The mobile profile waits for `data-client-ready`; all seven mobile lead cases passed. The success case asserts exactly one mocked `POST /api/leads` and zero native local GET navigations. | PASS | — |
-| Valid lead / exact redirect | Desktop and mobile success cases passed. The only redirect target was the fixture URL `https://t.me/test_bot?start=registered`. | PASS | — |
-| 422, 429, 503 and offline | Each browser error flow stayed on the form and retained entered data. | PASS | — |
-| Double click, Back and keyboard flow | One pending double-click generated one mocked request; Back did not resubmit; desktop keyboard-only submit passed. | PASS | Mobile keyboard test is deliberately skipped because the desktop tab-order gate owns that check. |
-| Two sections, visible CTA/form, focus and overflow | CSS-pixel matrix at 320x568, 390x844, 768x1024 and 1440x900 passed; focused name field was not clipped and `scrollWidth <= innerWidth`. | PASS | — |
-| axe critical/serious | Public landing axe gate passed in both desktop and iPhone projects. | PASS | — |
-| DPR 1 visual baseline | All three CSS-pixel visual tests passed, including 1440x900 and the accepted 390x844 baseline and the opaque hero/no-dev-overlay checks. | PASS | — |
-| Full Vitest roots | `tests/unit`, `tests/component` and `tests/integration` collected cleanly: 17 files, 134 tests passed. Playwright specs are no longer collected by Vitest. | PASS | — |
-| Full controlled browser E2E | Desktop, iPhone and CSS-pixel visual projects: 21 passed, 2 intentional skips. The owned loopback port was confirmed closed. | PASS | — |
-| Full lint gate | `eslint .` exits 1 because `scripts/e2e-harness.d.mts:7` is parsed as JavaScript and reports `Missing initializer in const declaration`. `npm run verify` therefore cannot pass. | **P1 BLOCKER** | Foundation/tooling owner: configure ESLint TypeScript parsing for `.mts` declaration files or exclude that declaration file, then independently rerun lint and QA. |
-| Typecheck and assets | `tsc --noEmit` and `scripts/verify-assets.mjs` both exited 0; asset verifier reported four reviewed assets. | PASS | — |
-| 200% zoom, reduced motion, screen-reader path | Not independently executed in this controlled rerun. Existing automated keyboard, focus-visible and axe checks do not substitute for this manual release checklist. | OPEN | Complete in staging/release QA before any production verdict. |
-| Docker image build | Not run: the local Docker daemon is unavailable (`//./pipe/docker_engine` missing). `docker version` confirms the client but cannot connect to a server. | BLOCKED | Platform / QA on a host with Docker daemon. |
-| Staging SMTP / Telegram webhook | Not run: external effects and an HTTPS staging endpoint are outside this Task 10 fixture-only QA scope. | NOT AUTHORIZED | Task 11 with owner inputs and explicit authority. |
+| Final-review regressions | Targeted Node 24 run: 7 files, 69 tests passed. Covers standalone runner preflight, Vitest isolation, Telegram definite-failure retry/new Start and unknown-outcome suppression, trusted-proxy IP parsing, loopback Compose binding, Redis claim ownership, and goal-tab rejection. | PASS | — |
+| Full Vitest roots | `tests/unit`, `tests/component`, and `tests/integration`: 21 files, 154 tests passed. `tests/e2e` remains Playwright-owned. | PASS | — |
+| Full lint gate | Node 24 `eslint .` exited 0. The former `.d.mts` parsing finding is no longer a blocker. | PASS | — |
+| Typecheck and assets | Node 24 `tsc --noEmit` exited 0; asset verifier reported four reviewed assets. | PASS | — |
+| Controlled browser E2E | Current-tree harness reported 21 Playwright tests passed and confirmed its loopback port closed. Existing success/error/double-click/Back/keyboard, viewport, axe, and visual gates remain green. | PASS | — |
+| Vitest dotenv isolation | Config regression proves `envDir: false`; the full Vitest run completed without the prior root-dotenv parse path. | PASS | — |
+| Runner preflight artifact | A regression copied only the runner's `scripts/check-env.mjs` artifact into a temporary runner layout. Valid fixtures exited 0; an unsafe integer exited 1 with only its key name. No source TypeScript import was needed. | PASS (FIXTURE/STATIC) | Execute the built image entrypoint with production inputs on the release host. |
+| Trusted proxy and rate-limit identity | Compose binds app to host loopback. One valid IPv4/IPv6 proxy value is accepted; missing, malformed, or comma-separated XFF values use the shared fail-closed `unknown` identity. | PASS (CODE/CONFIG) | Verify the deployed proxy overwrites XFF and public traffic cannot bypass it. |
+| Docker Compose model | `docker compose --env-file .env.example config --no-interpolate --quiet` exited 0 without a daemon. | PASS (MODEL ONLY) | This does not prove image build, entrypoint, health, or production values. |
+| Docker image build/runtime | Not run; raw build and Docker daemon use were outside this fix wave. | BLOCKED / NOT RUN | Platform/QA on a Docker-capable release host. |
+| 200% zoom, reduced motion, screen-reader path | Not independently executed in this fix wave. Automated keyboard/focus/axe checks do not replace the manual release checklist. | OPEN | Complete before a production verdict. |
+| Production SMTP / Telegram webhook / deploy | External effects and an HTTPS production endpoint were not authorized. | NOT AUTHORIZED | Task 11 with owner inputs and explicit authority. |
 
 ## Reproduction
 
-Run from `dk-fit` with Node `v24.16.0`; do not load, print, or source a user
+Run from `dk-fit` with Node `v24.16.0`. Do not source or print a user
 environment file:
 
 ```powershell
@@ -40,25 +41,22 @@ J:\AI\node-v24.16.0-win-x64\node.exe .\scripts\run-e2e.mjs --reporter=line
 J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\eslint\bin\eslint.js .
 J:\AI\node-v24.16.0-win-x64\node.exe .\node_modules\typescript\bin\tsc --noEmit
 J:\AI\node-v24.16.0-win-x64\node.exe .\scripts\verify-assets.mjs
+docker compose --env-file .env.example config --no-interpolate --quiet
 ```
 
-`npm run verify` was intentionally not invoked: its raw `npm run build` stage
-does not use the controlled quarantine harness and could load a root `.env`.
-The isolated E2E harness did execute its own fixture-only production build;
-that build and all browser checks passed. The independent direct lint run still
-proves the aggregate script currently fails, without accessing a user env file.
+`npm run verify` was not invoked because its raw build stage was explicitly
+outside this fix wave. The controlled E2E harness performed its fixture-only
+build safely. Compose model validation is intentionally reported separately
+from an image build or daemon-backed runtime check.
 
-## Blocking finding
+## Remaining production blockers
 
-1. **P1 — aggregate lint is failing.** `scripts/e2e-harness.d.mts` is a
-   TypeScript declaration file but the current ESLint configuration parses it as
-   JavaScript. This is a tooling defect, not evidence of a landing interaction
-   regression, but it blocks the required all-green local verification gate.
+There is no current lint blocker. Production remains NO-GO pending owner
+inputs, Docker image/entrypoint verification, trusted-proxy deployment
+verification, manual accessibility, authorized SMTP and Telegram smokes, HTTPS
+deployment, privacy/log inspection, and broad review.
 
-The former mobile native-submit, stale 390px visual, and Vitest/Playwright
-collection blockers were independently retested and are no longer present on
-the reviewed commit. See
-[`e2e-hydration-readiness.md`](evidence/2026-09-03-e2e-hydration-readiness.md)
-for the earlier root-cause and remediation evidence, and
-[`2026-09-03-task-10-rerun.md`](evidence/2026-09-03-task-10-rerun.md) for this
-fresh run.
+The earlier Task 10 snapshot is retained as historical evidence in
+[`2026-09-03-task-10-rerun.md`](evidence/2026-09-03-task-10-rerun.md). The
+current fix-wave evidence is
+[`2026-09-03-final-review-fix-wave.md`](evidence/2026-09-03-final-review-fix-wave.md).

@@ -1,5 +1,10 @@
 # Vitest runner separation evidence
 
+> Historical scoped evidence. Vitest now also sets `envDir: false`, and the
+> later full lint/Vitest/controlled-E2E gates are green. See
+> [`../../qa/evidence/2026-09-03-final-review-fix-wave.md`](../../qa/evidence/2026-09-03-final-review-fix-wave.md)
+> for current results.
+
 **Date:** 2026-09-03  
 **Scope:** Foundation tooling follow-up for Task 10 QA finding P1.
 

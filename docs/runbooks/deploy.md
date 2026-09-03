@@ -19,13 +19,44 @@ production action.
    confirmation. Do not place any value in a command, terminal capture, or
    ticket.
 3. In the target deployment environment, run `npm run check:env`.
-   It prints only invalid or missing key names. Any output or a non-zero exit is
-   a **NO-GO**; do not substitute fixture values.
+   The standalone script has no source-TypeScript imports and is the same
+   artifact executed by the container entrypoint before `server.js`. It prints
+   only invalid or missing key names. Any output or a non-zero exit is a
+   **NO-GO**; do not substitute fixture values.
 4. Run `npm run smoke:smtp -- --preflight` as the same runtime user. This is a
    second sanitized configuration check; it makes no network request and sends
    no email.
 5. Review the pending manual gates: 200% zoom, reduced motion, screen-reader
    pass, provider/hosting readiness, legal inputs, and final asset rights.
+
+For a daemon-free Compose model check, use a controlled non-secret env template
+and suppress rendered output:
+
+```powershell
+docker compose --env-file .env.example config --no-interpolate --quiet
+```
+
+An exit `0` validates the Compose model only. It does not build the image,
+contact a Docker daemon, execute the runner preflight, or validate production
+environment values.
+
+## Trusted reverse-proxy boundary
+
+The default Compose mapping exposes the app only as
+`127.0.0.1:${DK_FIT_APP_PORT:-3000}` and assumes a trusted reverse proxy on the
+same host. The proxy must overwrite `X-Forwarded-For` with exactly one client IP;
+it must not forward a client-provided value or use an append-style setting such
+as `proxy_add_x_forwarded_for`. For nginx, the relevant contract is:
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+```
+
+The application accepts only one syntactically valid IPv4 or IPv6 address from
+that header. Missing, malformed, or comma-separated values share the
+fail-closed `unknown` rate-limit identity. If the proxy runs in another
+container, attach it to a private Docker network and remove the host port rather
+than exposing the app publicly; preserve the same overwrite contract.
 
 ## Explicit SMTP smoke
 
@@ -58,7 +89,9 @@ not add a fallback provider.
 
 After all gates pass and explicit authority is recorded:
 
-1. Build and publish an immutable image from the approved release commit.
+1. Build and publish an immutable image from the approved release commit. Verify
+   that the image entrypoint reports a successful sanitized preflight before the
+   application starts.
 2. Deploy the image with the matching server-only environment and Redis.
 3. Confirm HTTPS before binding the Telegram webhook. Set the webhook only
    through `scripts/set-telegram-webhook.mjs`; verify its URL, pending updates,
