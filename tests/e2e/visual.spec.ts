@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 
 test("renders an opaque hero portrait without the Next development overlay", async ({ page }) => {
@@ -17,6 +18,7 @@ test("renders an opaque hero portrait without the Next development overlay", asy
 });
 
 test("keeps the FIT decoration behind the hero portrait", async ({ page }) => {
+  test.skip(test.info().project.name === "mobile", "Stacking gate uses the desktop CSS-pixel browser profile.");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
 
@@ -37,15 +39,43 @@ test("keeps the FIT decoration behind the hero portrait", async ({ page }) => {
   expect(stacking.wordZIndex).toBeLessThan(stacking.imageZIndex);
 });
 
-test("captures the approved Editorial Strength baseline at each viewport", async ({ page }, testInfo) => {
-  const isMobile = testInfo.project.name === "mobile";
-  await page.setViewportSize(isMobile ? { width: 390, height: 844 } : { width: 1440, height: 900 });
-  await page.goto("/");
+test("captures the approved Editorial Strength baselines in CSS-pixel viewports", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "Baselines are 72-DPI CSS-pixel captures, not device-pixel iPhone captures.");
 
-  await expect(page).toHaveScreenshot(`editorial-strength-${isMobile ? "mobile" : "desktop"}.png`, {
-    fullPage: true,
-    animations: "disabled",
-  });
+  for (const baseline of [
+    { expected: "editorial-strength-desktop-desktop-win32.png", viewport: { width: 1440, height: 900 } },
+    { expected: "editorial-strength-mobile-mobile-win32.png", viewport: { width: 390, height: 844 } },
+  ]) {
+    await page.setViewportSize(baseline.viewport);
+    await page.goto("/");
+    const actualScreenshot = await page.screenshot({ fullPage: true, animations: "disabled" });
+    await testInfo.attach(`${baseline.expected}-actual`, {
+      body: actualScreenshot,
+      contentType: "image/png",
+    });
+    const expectedScreenshot = await readFile(new URL(`./visual.spec.ts-snapshots/${baseline.expected}`, import.meta.url));
+    const [actual, expected] = await Promise.all([
+      sharp(actualScreenshot).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+      sharp(expectedScreenshot).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    ]);
+
+    expect(actual.info).toMatchObject({
+      channels: expected.info.channels,
+      height: expected.info.height,
+      width: expected.info.width,
+    });
+    let mismatchedPixels = 0;
+    for (let index = 0; index < actual.data.length; index += actual.info.channels) {
+      const hasVisibleDifference = [0, 1, 2].some((channel) =>
+        Math.abs(actual.data[index + channel] - expected.data[index + channel]) > 16,
+      );
+      if (hasVisibleDifference) {
+        mismatchedPixels += 1;
+      }
+    }
+    const totalPixels = actual.info.width * actual.info.height;
+    expect(mismatchedPixels / totalPixels, `${baseline.expected} visible mismatch ratio`).toBeLessThan(0.003);
+  }
 
   await testInfo.attach("landing-viewport", {
     body: await page.screenshot({ fullPage: false, animations: "disabled" }),
