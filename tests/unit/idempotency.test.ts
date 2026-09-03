@@ -4,7 +4,11 @@ import {
   LEAD_IDEMPOTENCY_TTL_SECONDS,
   createLeadIdempotency,
 } from "../../src/lib/leads/idempotency";
-import { claimRedisKeysOnce, type RedisStore } from "../../src/lib/redis/client";
+import {
+  claimRedisKeysOnce,
+  releaseRedisKeysIfOwned,
+  type RedisStore,
+} from "../../src/lib/redis/client";
 
 type Entry = { value: string; expiresAt?: number };
 
@@ -63,13 +67,23 @@ class FakeRedis implements RedisStore {
       }
       return 1;
     }
+    if (script.includes("claimOwner")) {
+      if (options.keys.some((key) => this.read(key)?.value !== options.arguments[0])) {
+        return 0;
+      }
+      options.keys.forEach((key) => this.entries.delete(key));
+      return 1;
+    }
     const duplicateIndex = options.keys.findIndex((key) => this.read(key));
     if (duplicateIndex >= 0) {
       return duplicateIndex + 1;
     }
     options.keys.forEach((key, index) => {
       const ttlSeconds = Number(options.arguments[index]);
-      this.entries.set(key, { value: "1", expiresAt: ttlSeconds ? this.timestamp + ttlSeconds * 1_000 : undefined });
+      this.entries.set(key, {
+        value: options.arguments[options.keys.length] ?? "1",
+        expiresAt: ttlSeconds ? this.timestamp + ttlSeconds * 1_000 : undefined,
+      });
     });
     return 0;
   }
@@ -205,6 +219,27 @@ describe("lead idempotency", () => {
       ]),
     ).resolves.toEqual({ kind: "duplicate", duplicateIndex: 0 });
     expect(redis.entries.has("telegram:started:hashed-chat")).toBe(false);
+  });
+
+  it("releases a group of Telegram markers only for its matching claim owner", async () => {
+    const redis = new FakeRedis();
+    const keys = ["telegram:update:123", "telegram:started:hashed-chat"];
+
+    await expect(
+      claimRedisKeysOnce(
+        redis,
+        [
+          { key: keys[0], ttlSeconds: 60 },
+          { key: keys[1] },
+        ],
+        "claim-owner",
+      ),
+    ).resolves.toEqual({ kind: "claimed" });
+
+    await expect(releaseRedisKeysIfOwned(redis, keys, "another-owner")).resolves.toBe(false);
+    expect(redis.entries.size).toBe(2);
+    await expect(releaseRedisKeysIfOwned(redis, keys, "claim-owner")).resolves.toBe(true);
+    expect(redis.entries.size).toBe(0);
   });
 });
 

@@ -28,11 +28,13 @@ function leadRequest({
   contentType = "application/json",
   origin = "https://dk-fit.test",
   idempotencyKey = IDEMPOTENCY_KEY,
+  forwardedFor = "203.0.113.42",
 }: {
   body?: unknown;
   contentType?: string;
   origin?: string;
   idempotencyKey?: string;
+  forwardedFor?: string | null;
 } = {}) {
   return new Request("https://dk-fit.test/api/leads", {
     method: "POST",
@@ -40,7 +42,7 @@ function leadRequest({
       "content-type": contentType,
       origin,
       "idempotency-key": idempotencyKey,
-      "x-forwarded-for": "203.0.113.42",
+      ...(forwardedFor === null ? {} : { "x-forwarded-for": forwardedFor }),
     },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
@@ -179,6 +181,32 @@ describe("POST /api/leads", () => {
     await expectSafeError(await handler(leadRequest()), 429, "RATE_LIMITED");
     expect(releaseLead).toHaveBeenCalledWith(IDEMPOTENCY_KEY, CLAIM_TOKEN);
     expect(dependencies.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("uses a single validated client address supplied by the trusted proxy", async () => {
+    const checkLeadRateLimit = vi.fn().mockResolvedValue({ allowed: true, charged: true });
+    const { handler } = handlerWith({ rateLimiter: { checkLeadRateLimit } });
+
+    expect((await handler(leadRequest({ forwardedFor: "2001:db8::42" }))).status).toBe(201);
+    expect(checkLeadRateLimit).toHaveBeenCalledWith(
+      { ip: "2001:db8::42", phone: "+7 900 000-00-00" },
+      { kind: "claimed", token: CLAIM_TOKEN },
+    );
+  });
+
+  it.each([
+    ["a missing header", null],
+    ["an invalid value", "not-an-ip"],
+    ["a spoofable forwarded chain", "198.51.100.10, 203.0.113.42"],
+  ])("does not use %s as a rate-limit identity", async (_scenario, forwardedFor) => {
+    const checkLeadRateLimit = vi.fn().mockResolvedValue({ allowed: true, charged: true });
+    const { handler } = handlerWith({ rateLimiter: { checkLeadRateLimit } });
+
+    expect((await handler(leadRequest({ forwardedFor }))).status).toBe(201);
+    expect(checkLeadRateLimit).toHaveBeenCalledWith(
+      { ip: "unknown", phone: "+7 900 000-00-00" },
+      { kind: "claimed", token: CLAIM_TOKEN },
+    );
   });
 
   it("fails closed when Redis is unavailable before SMTP", async () => {

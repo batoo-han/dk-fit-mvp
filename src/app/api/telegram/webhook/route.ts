@@ -5,22 +5,24 @@ import "server-only";
 import { getServerEnv } from "../../../../lib/config/env";
 import {
   sendTelegramMessage,
+  TelegramDeliveryError,
   TelegramDeliveryUnknownError,
 } from "../../../../lib/telegram/client";
-import { createTelegramDedupe } from "../../../../lib/telegram/dedupe";
+import {
+  createTelegramDedupe,
+  type TelegramDedupe,
+  type TelegramDedupeResult,
+} from "../../../../lib/telegram/dedupe";
 import { parseStartCommand } from "../../../../lib/telegram/command";
 
 const THANKS_MESSAGE = "Спасибо за регистрацию!";
 
-export { TelegramDeliveryUnknownError };
 export const runtime = "nodejs";
-
-export type TelegramDedupeResult = "claimed" | "duplicate_update" | "already_started";
 
 export type TelegramWebhookDependencies = {
   botUsername: string;
   webhookSecret: string;
-  dedupe: { claim(updateId: number, chatId: number): Promise<TelegramDedupeResult> };
+  dedupe: TelegramDedupe;
   sendMessage(chatId: number, text: string): Promise<void>;
   log(event: string): void;
 };
@@ -49,7 +51,7 @@ export function createTelegramWebhookHandler(dependencies: TelegramWebhookDepend
       return Response.json({ ok: false, error: "dedupe_unavailable" }, { status: 500 });
     }
 
-    if (claim !== "claimed") {
+    if (claim.kind !== "claimed") {
       return new Response(null, { status: 200 });
     }
 
@@ -60,6 +62,20 @@ export function createTelegramWebhookHandler(dependencies: TelegramWebhookDepend
       if (error instanceof TelegramDeliveryUnknownError) {
         dependencies.log("telegram_delivery_unknown");
         return Response.json({ ok: false, error: "delivery_unknown" }, { status: 500 });
+      }
+
+      if (error instanceof TelegramDeliveryError) {
+        try {
+          const released = await dependencies.dedupe.release(
+            update.update_id,
+            update.message.chat.id,
+            claim.token,
+          );
+          dependencies.log(released ? "telegram_delivery_failed" : "telegram_dedupe_release_conflict");
+        } catch {
+          dependencies.log("telegram_dedupe_release_unavailable");
+        }
+        return Response.json({ ok: false, error: "delivery_failed" }, { status: 500 });
       }
 
       dependencies.log("telegram_delivery_failed");

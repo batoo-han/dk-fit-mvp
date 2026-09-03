@@ -1,5 +1,7 @@
 import "server-only";
 
+import { isIP } from "node:net";
+
 import { getServerEnv, type ServerEnv } from "../../../lib/config/env";
 import { leadSubmitSchema, type LeadErrorCode, type LeadSubmitRequest } from "../../../lib/contracts/lead";
 import { createLeadIdempotency, type LeadIdempotency } from "../../../lib/leads/idempotency";
@@ -97,7 +99,7 @@ async function handleLeadRequest(
         idempotencyKey,
         requestPayload: canonicalLeadPayload(lead),
         lead,
-        ip: clientIp(request.headers),
+        ip: trustedProxyClientIp(request.headers),
       },
     );
 
@@ -242,8 +244,13 @@ function canonicalLeadPayload(lead: LeadSubmitRequest): string {
   });
 }
 
-function clientIp(headers: Headers): string {
-  return headers.get("x-forwarded-for")?.split(",", 1)[0]?.trim() || "unknown";
+function trustedProxyClientIp(headers: Headers): string {
+  const forwardedFor = headers.get("x-forwarded-for")?.trim();
+  if (!forwardedFor || forwardedFor.includes(",") || isIP(forwardedFor) === 0) {
+    return "unknown";
+  }
+
+  return forwardedFor;
 }
 
 function noStoreHeaders(): HeadersInit {

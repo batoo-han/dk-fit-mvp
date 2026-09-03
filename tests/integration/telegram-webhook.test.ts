@@ -1,12 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  TelegramDeliveryUnknownError,
   createTelegramWebhookHandler,
   type TelegramWebhookDependencies,
 } from "../../src/app/api/telegram/webhook/route";
+import {
+  TelegramDeliveryError,
+  TelegramDeliveryUnknownError,
+} from "../../src/lib/telegram/client";
 
 const WEBHOOK_SECRET = "s".repeat(32);
+const CLAIM_TOKEN = "00000000-0000-4000-8000-000000000000";
 
 function startUpdate(updateId = 101, chatId = 42) {
   return {
@@ -24,7 +28,8 @@ function handlerWith(overrides: Partial<TelegramWebhookDependencies> = {}) {
     botUsername: "test_bot",
     webhookSecret: WEBHOOK_SECRET,
     dedupe: {
-      claim: vi.fn().mockResolvedValue("claimed"),
+      claim: vi.fn().mockResolvedValue({ kind: "claimed", token: CLAIM_TOKEN }),
+      release: vi.fn().mockResolvedValue(true),
     },
     sendMessage,
     log: vi.fn(),
@@ -67,7 +72,10 @@ describe("POST /api/telegram/webhook", () => {
 
   it("does not resend for an already-claimed update", async () => {
     const { handler, sendMessage } = handlerWith({
-      dedupe: { claim: vi.fn().mockResolvedValue("duplicate_update") },
+      dedupe: {
+        claim: vi.fn().mockResolvedValue({ kind: "duplicate_update" }),
+        release: vi.fn().mockResolvedValue(false),
+      },
     });
 
     const response = await handler(webhookRequest(startUpdate()));
@@ -78,7 +86,10 @@ describe("POST /api/telegram/webhook", () => {
 
   it("does not send another thanks for a new Start from an already-thanked chat", async () => {
     const { handler, sendMessage } = handlerWith({
-      dedupe: { claim: vi.fn().mockResolvedValue("already_started") },
+      dedupe: {
+        claim: vi.fn().mockResolvedValue({ kind: "already_started" }),
+        release: vi.fn().mockResolvedValue(false),
+      },
     });
 
     const response = await handler(webhookRequest(startUpdate(102)));
@@ -103,20 +114,90 @@ describe("POST /api/telegram/webhook", () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
-  it("returns an explicit retry-safe unknown state after a Telegram timeout without logging the raw update", async () => {
+  it("releases a definite Telegram rejection so the same update can be retried", async () => {
+    const dedupe = statefulDedupe();
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new TelegramDeliveryError())
+      .mockResolvedValueOnce(undefined);
+    const { handler } = handlerWith({ dedupe, sendMessage });
+
+    const firstResponse = await handler(webhookRequest(startUpdate(103, 987654)));
+    const retryResponse = await handler(webhookRequest(startUpdate(103, 987654)));
+
+    expect(firstResponse.status).toBe(500);
+    await expect(firstResponse.json()).resolves.toEqual({ ok: false, error: "delivery_failed" });
+    expect(retryResponse.status).toBe(200);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(dedupe.release).toHaveBeenCalledOnce();
+  });
+
+  it("releases a definite Telegram rejection so a new Start from the same chat can succeed", async () => {
+    const dedupe = statefulDedupe();
+    const sendMessage = vi
+      .fn()
+      .mockRejectedValueOnce(new TelegramDeliveryError())
+      .mockResolvedValueOnce(undefined);
+    const { handler } = handlerWith({ dedupe, sendMessage });
+
+    const firstResponse = await handler(webhookRequest(startUpdate(104, 987654)));
+    const newStartResponse = await handler(webhookRequest(startUpdate(105, 987654)));
+
+    expect(firstResponse.status).toBe(500);
+    expect(newStartResponse.status).toBe(200);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(dedupe.release).toHaveBeenCalledOnce();
+  });
+
+  it("keeps dedupe markers for an unknown delivery outcome without logging the raw update", async () => {
     const log = vi.fn();
+    const dedupe = statefulDedupe();
     const timeoutSendMessage = vi.fn().mockRejectedValue(new TelegramDeliveryUnknownError());
-    const { handler, sendMessage } = handlerWith({
+    const { handler } = handlerWith({
+      dedupe,
       log,
       sendMessage: timeoutSendMessage,
     });
 
     const response = await handler(webhookRequest(startUpdate(103, 987654)));
+    const newStartResponse = await handler(webhookRequest(startUpdate(104, 987654)));
 
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ ok: false, error: "delivery_unknown" });
+    expect(newStartResponse.status).toBe(200);
     expect(timeoutSendMessage).toHaveBeenCalledOnce();
+    expect(dedupe.release).not.toHaveBeenCalled();
     expect(JSON.stringify(log.mock.calls)).not.toContain("987654");
     expect(JSON.stringify(log.mock.calls)).not.toContain("/start registered");
   });
 });
+
+function statefulDedupe(): TelegramWebhookDependencies["dedupe"] & { release: ReturnType<typeof vi.fn> } {
+  const updates = new Map<number, string>();
+  const chats = new Map<number, string>();
+  let claimSequence = 0;
+
+  return {
+    claim: vi.fn(async (updateId: number, chatId: number) => {
+      if (updates.has(updateId)) {
+        return { kind: "duplicate_update" } as const;
+      }
+      if (chats.has(chatId)) {
+        return { kind: "already_started" } as const;
+      }
+
+      const token = `claim-${claimSequence += 1}`;
+      updates.set(updateId, token);
+      chats.set(chatId, token);
+      return { kind: "claimed", token } as const;
+    }),
+    release: vi.fn(async (updateId: number, chatId: number, token: string) => {
+      if (updates.get(updateId) !== token || chats.get(chatId) !== token) {
+        return false;
+      }
+      updates.delete(updateId);
+      chats.delete(chatId);
+      return true;
+    }),
+  };
+}

@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 const serverOnlyStub = new URL("./node_modules/server-only/empty.js", import.meta.url).pathname;
 
 export default defineConfig({
+  envDir: false,
   resolve: {
     alias: {
       "server-only": serverOnlyStub,

@@ -11,4 +11,11 @@ describe("production Compose configuration", () => {
     expect(compose).toContain("path: ${DK_FIT_ENV_FILE:-.env}");
     expect(compose).toContain("NODE_ENV: production");
   });
+
+  it("binds the application port to loopback for trusted reverse-proxy ingress", async () => {
+    const compose = await readFile(composePath, "utf8");
+
+    expect(compose).toContain('"127.0.0.1:${DK_FIT_APP_PORT:-3000}:3000"');
+    expect(compose).not.toContain('"3000:3000"');
+  });
 });

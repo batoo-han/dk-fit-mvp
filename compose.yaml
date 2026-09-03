@@ -12,7 +12,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "127.0.0.1:${DK_FIT_APP_PORT:-3000}:3000"
     restart: unless-stopped
 
   redis:

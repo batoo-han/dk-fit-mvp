@@ -80,6 +80,7 @@ describe("leadSubmitSchema", () => {
 
   it("allows ordinary goal line breaks but rejects other goal control characters", () => {
     expect(isValid({ ...validLead, goal: "Сила\nВыносливость" })).toBe(true);
+    expect(isValid({ ...validLead, goal: "Сила\tВыносливость" })).toBe(false);
     expect(isValid({ ...validLead, goal: "Сила\u0001" })).toBe(false);
   });
 
