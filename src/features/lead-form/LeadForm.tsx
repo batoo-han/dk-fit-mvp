@@ -21,7 +21,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
   const [state, dispatch] = useReducer(leadFormReducer, initialLeadFormState);
   const idempotencyKey = useRef<string | undefined>(undefined);
   const form = useRef<HTMLFormElement | null>(null);
-  const [formStartedAt] = useState(() => Date.now());
+  const [formStartedAt, setFormStartedAt] = useState(() => Date.now());
   const honeypot = useRef<HTMLInputElement | null>(null);
   const firstInvalidField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const telegramWindow = useRef<Window | null>(null);
@@ -41,7 +41,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (state.status === "submitting" || state.status === "email_accepted" || state.status === "redirecting") {
+    if (state.status === "submitting" || state.status === "redirecting") {
       return;
     }
 
@@ -63,8 +63,13 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
         const response = await request(leadRequest, key);
         const payload = await safeJson(response);
         if (response.status === 201 && isLeadSuccess(payload)) {
-          dispatch({ type: "EMAIL_ACCEPTED", telegramDeepLink: payload.telegramDeepLink });
           navigateTelegramWindow(telegramWindow, payload.telegramDeepLink);
+          idempotencyKey.current = undefined;
+          setFormStartedAt(Date.now());
+          if (honeypot.current) {
+            honeypot.current.value = "";
+          }
+          dispatch({ type: "EMAIL_ACCEPTED", telegramDeepLink: payload.telegramDeepLink });
           return;
         }
 
@@ -105,7 +110,7 @@ export function LeadForm({ request = submitLead }: LeadFormProps) {
     }
   }
 
-  const isSubmitting = state.status === "submitting" || state.status === "email_accepted" || state.status === "redirecting";
+  const isSubmitting = state.status === "submitting" || state.status === "redirecting";
   const message = state.status === "email_accepted" || state.status === "redirecting"
     ? content.successMessage
     : state.message;

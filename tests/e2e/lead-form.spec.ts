@@ -57,6 +57,13 @@ test("submits exactly one valid request then opens the returned Telegram deep li
 
   await expect(telegramPage).toHaveURL(telegramDeepLink);
   await expect(page).toHaveURL(/\/$/u);
+  await expect(page.getByLabel("Имя")).toHaveValue("");
+  await expect(page.getByLabel("Телефон")).toHaveValue("");
+  await expect(page.getByLabel("Цель тренировок")).toHaveValue("");
+  await expect(page.getByLabel("Согласие на обработку данных")).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Отправить заявку" })).toBeEnabled();
+  await expect(page.getByText("Заявка отправлена. Открываем Telegram…")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Открыть Telegram" })).toBeVisible();
   expect(requests).toBe(1);
   expect(nativeFormNavigations).toBe(0);
   expect(payload).toMatchObject({
